@@ -72,14 +72,8 @@ class InferenceServer {
   Status ModelReadyVersions(
       const std::string& model_name, std::vector<int64_t>* versions);
 
-  // Perform inference on the given input for specified model. Status
-  // is returned in the OnCompleteInfer callback.
-  void InferAsync(
-      const std::shared_ptr<InferenceBackend>& backend,
-      const std::shared_ptr<InferenceRequest>& request,
-      const std::shared_ptr<InferResponseProvider>& response_provider,
-      const std::shared_ptr<ModelInferStats>& infer_stats,
-      std::function<void(const Status&)> OnCompleteInfer);
+  // Inference
+  Status InferAsync(const std::shared_ptr<InferenceRequest>& request);
 
   // Update the ServerStatus object with the status of the model. If
   // 'model_name' is empty, update with the status of all models.

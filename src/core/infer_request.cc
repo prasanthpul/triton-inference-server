@@ -75,6 +75,11 @@ InferenceRequest::ActualModelVersion() const
 {
   return backend_raw_->Version();
 }
+Status
+InferenceRequest::Run()
+{
+  return backend_raw_->Run(nullptr, *this);
+}
 
 Status
 InferenceRequest::MutableOriginalInput(

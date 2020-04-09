@@ -51,6 +51,7 @@ extern "C" {
 
 struct TRITONSERVER_Error;
 struct TRITONSERVER_InferenceRequest;
+struct TRITONSERVER_InferenceResponse;
 struct TRITONSERVER_Message;
 struct TRITONSERVER_Metrics;
 struct TRITONSERVER_ResponseAllocator;
@@ -632,82 +633,62 @@ TRITONSERVER_InferenceRequestSetRequestedOutputClassificationCount(
     TRITONSERVER_InferenceRequest* inference_request, const char* name,
     uint32_t count);
 
-/// Return the error status of an inference request corresponding to
-/// the most recent call to TRITONSERVER_ServerInferAsync. Return a
-/// TRITONSERVER_Error object on failure, return nullptr on success.  The
-/// returned error object is owned by 'inference_request' and so
+/// TRITONSERVER_InferenceResponse
+///
+/// Object representing an inference response. The inference response
+/// provides the meta-data and output tensor values calculated by the
+/// inference.
+///
+
+/// Return the error status of an inference response. Return a
+/// TRITONSERVER_Error object on failure, return nullptr on success.
+/// The returned error object is owned by 'inference_response' and so
 /// should not be deleted by the caller.
-/// \param inference_request The request object.
-/// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceRequestError(
-    TRITONSERVER_InferenceRequest* inference_request);
+///
+/// \param inference_response The response object.
+/// \return a TRITONSERVER_Error indicating the success or failure
+/// status of the response.
+TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceResponseError(
+    TRITONSERVER_InferenceResponse* inference_response);
 
-/// Get the datatype of an output tensor.
-/// \param inference_request The request object.
-/// \param name The name of the output.
-/// \param datatype Returns the type of the output. The returned
-/// datatype is owned by 'inference_request' and must not be modified
-/// or freed by the caller.
-/// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_EXPORT TRITONSERVER_Error*
-TRITONSERVER_InferenceRequestOutputDataType(
-    TRITONSERVER_InferenceRequest* inference_request, const char* name,
-    const char** datatype);
-
-/// Get the shape of an output tensor.
-/// \param inference_request The request object.
-/// \param name The name of the output.
-/// \param shape Return the shape of the output. The returned value is owned by
-/// 'inference_request' and must not be modified or freed by the caller.
-/// \param dim_count Returns the number of dimensions of the returned shape.
+/// Get the number of outputs available in the response.
+///
+/// \param inference_response The response object.
+/// \param count Returns the number of output tensors.
 /// \return a TRITONSERVER_Error indicating success or failure.
 TRITONSERVER_EXPORT TRITONSERVER_Error*
-TRITONSERVER_InferenceRequestOutputShape(
-    TRITONSERVER_InferenceRequest* inference_request, const char* name,
-    const int64_t** shape, uint64_t* dim_count);
+TRITONSERVER_InferenceResponseOutputCount(
+    TRITONSERVER_InferenceResponse* inference_response, uint32_t* count);
 
-/// Get the number of output tensors in the result.
-/// \param inference_request The request object.
-/// \param output_count Returns the number of outputs from a inference request.
-/// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_EXPORT TRITONSERVER_Error*
-TRITONSERVER_InferenceRequestOutputCount(
-    TRITONSERVER_InferenceRequest* inference_request, uint64_t* output_count);
-
-/// Get the name of the output tensor at a specific index.
-/// \param inference_request The request object.
-/// \param index The index of the output tensor.
-/// \param name The name of the output at 'index'.
-/// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceRequestOutputName(
-    TRITONSERVER_InferenceRequest* inference_request, uint64_t index,
-    const char** name);
-
-/// Get the results data for a named output. The result data is
+/// Get all information about an output tensor.  The tensor data is
 /// returned as the base pointer to the data and the size, in bytes,
 /// of the data. The caller does not own the returned data and must
-/// not modify or delete it. The lifetime of the returned data extends
-/// until 'inference_request' is deleted or until 'inference_request' is
-/// reused in a call to TRITONSERVER_ServerInferAsync.
-/// \param inference_request The request object.
-/// \param name The name of the output.
-/// \param base Returns the result data for the named output.
-/// \param byte_size Returns the size, in bytes, of the output data.
-/// \param memory_type Returns the memory type of the output data.
-/// \param memory_type_id Returns the memory type id of the output data.
+/// not modify or delete it. The lifetime of all returned data extends
+/// until 'inference_response' is deleted.
+///
+/// \param inference_response The response object.
+/// \param index The index of the output tensors, must be 0 <= index <
+/// count, where 'count' is the value returned by
+/// TRITONSERVER_InferenceResponseOutputCount.
+/// \param datatype Returns the type of the output. The returned
+/// datatype is owned by 'inference_response' and must not be modified
+/// or freed by the caller.
+/// \param shape Returns the shape of the output. The returned value
+/// is owned by 'inference_response' and must not be modified or freed
+/// by the caller.
+/// \param dim_count Returns the number of dimensions of the returned
+/// shape.
+/// \param base Returns the tensor data for the named output.
+/// \param byte_size Returns the size, in bytes, of the  data.
+/// \param memory_type Returns the memory type of the data.
+/// \param memory_type_id Returns the memory type id of the data.
 /// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceRequestOutputData(
-    TRITONSERVER_InferenceRequest* inference_request, const char* name,
+TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceResponseOutput(
+    TRITONSERVER_InferenceResponse* inference_response, const uint32_t index,
+    const char** datatype, const int64_t** shape, uint64_t* dim_count,
     const void** base, size_t* byte_size, TRITONSERVER_Memory_Type* memory_type,
     int64_t* memory_type_id);
 
-/// Remove all the output tensors. The meta data of the output tensors will
-/// become unaccesible and the result data will be released.
-/// \param inference_request The request object.
-/// \return a TRITONSERVER_Error indicating success or failure.
-TRITONSERVER_EXPORT TRITONSERVER_Error*
-TRITONSERVER_InferenceRequestRemoveAllOutputs(
-    TRITONSERVER_InferenceRequest* inference_request);
 
 /// TRITONSERVER_ServerOptions
 ///
@@ -1087,43 +1068,70 @@ TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_ServerUnloadModel(
 TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_ServerMetrics(
     TRITONSERVER_Server* server, TRITONSERVER_Metrics** metrics);
 
-/// Type for inference completion callback function. If non-nullptr,
-/// the 'trace_manager' object is the trace manager associated with
-/// the request that is completing. The callback function takes
-/// ownership of the TRITONSERVER_TraceManager object and must call
-/// TRITONSERVER_TraceManagerDelete to release the object. The callback
-/// function takes ownership of the TRITONSERVER_InferenceRequest object
-/// and must call TRITONSERVER_InferenceRequestDelete to release the
+/// Type for inference request release callback function. The callback
+/// function takes ownership of the TRITONSERVER_InferenceRequest
 /// object. The 'userp' data is the same as what is supplied in the
 /// call to TRITONSERVER_ServerInferAsync.
-typedef void (*TRITONSERVER_InferenceCompleteFn_t)(
+typedef void (*TRITONSERVER_InferenceRequestReleaseFn_t)(
+    TRITONSERVER_Server* server, TRITONSERVER_InferenceRequest* request,
+    void* userp);
+
+/// Type for inference response callback function. The callback
+/// function takes ownership of the TRITONSERVER_InferenceResponse
+/// object. The 'userp' data is the same as what is supplied in the
+/// call to TRITONSERVER_ServerInferAsync.
+typedef void (*TRITONSERVER_InferenceResponseFn_t)(
+    TRITONSERVER_Server* server, TRITONSERVER_InferenceResponse* response,
+    void* userp);
+
+/// Type for trace manager release callback function. The callback
+/// function takes ownership of the TRITONSERVER_TraceManager
+/// object. The 'userp' data is the same as what is supplied in the
+/// call to TRITONSERVER_ServerInferAsync.
+typedef void (*TRITONSERVER_TraceManagerReleaseFn_t)(
     TRITONSERVER_Server* server, TRITONSERVER_TraceManager* trace_manager,
-    TRITONSERVER_InferenceRequest* request, void* userp);
+    void* userp);
 
 /// Perform inference using the meta-data and inputs supplied by the
 /// 'inference_request'. The caller releases ownership of
-/// 'inference_request' and 'trace_manager' and must not access them
-/// in any way after this call, until ownership is returned via the
-/// completion function.
+/// 'inference_request' and must not access it in any way after this
+/// call, until ownership is returned via the 'request_release_fn'
+/// callback. Similarly, the caller releases ownership of
+/// 'trace_manager' and must not access it in any way after this call,
+/// until ownership is returned via the 'trace_release_fn' callback.
+///
 /// \param server The inference server object.
-/// \param trace_manager The trace manager object for this request, or
-/// nullptr if no tracing.
 /// \param inference_request The request object.
 /// \param response_allocator The TRITONSERVER_ResponseAllocator to use
 /// to allocate buffers to hold inference results.
 /// \param response_allocator_userp User-provided pointer that is
 /// delivered to the response allocator's allocation function.
-/// \param complete_fn The function called when the inference
-/// completes.
-/// \param complete_userp User-provided pointer that is delivered to
-/// the completion function.
+/// \param request_release_fn The function called to return ownership
+/// of the 'inference_request' object.
+/// \param request_release_userp User-provided pointer that is
+/// delivered to the 'request_release_fn' callback.
+/// \param response_fn The function called to deliver an inference
+/// response for this request.
+/// \param response_userp User-provided pointer that is delivered to
+/// the 'response_fn' callback.
+/// \param trace_manager The trace manager object for this request, or
+/// nullptr if no tracing.
+/// \param trace_release_fn The function called to return ownership of
+/// the 'trace_manager' object. May be nullptr if no trace manager.
+/// \param trace_release_userp User-provided pointer that is delivered
+/// to the 'trace_release_fn' callback.
 /// \return a TRITONSERVER_Error indicating success or failure.
 TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_ServerInferAsync(
-    TRITONSERVER_Server* server, TRITONSERVER_TraceManager* trace_manager,
+    TRITONSERVER_Server* server,
     TRITONSERVER_InferenceRequest* inference_request,
     TRITONSERVER_ResponseAllocator* response_allocator,
     void* response_allocator_userp,
-    TRITONSERVER_InferenceCompleteFn_t complete_fn, void* complete_userp);
+    TRITONSERVER_InferenceRequestReleaseFn_t request_release_fn,
+    void* request_release_userp, TRITONSERVER_InferenceResponseFn_t response_fn,
+    void* response_userp, TRITONSERVER_TraceManager* trace_manager,
+    TRITONSERVER_TraceManagerReleaseFn_t trace_release_fn,
+    void* trace_release_userp);
+
 
 #ifdef __cplusplus
 }

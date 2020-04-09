@@ -225,14 +225,14 @@ InferenceBackend::Init(
   return Status::Success;
 }
 
-void
+Status
 InferenceBackend::Run(
     const std::shared_ptr<ModelInferStats>& stats,
-    const std::shared_ptr<InferenceRequest>& request,
-    const std::shared_ptr<InferResponseProvider>& response_provider,
-    std::function<void(const Status&)> OnCompleteHandleInfer)
+    const std::shared_ptr<InferenceRequest>& request)
 {
-  scheduler_->Enqueue(stats, request, response_provider, OnCompleteHandleInfer);
+  // FIXME
+  // scheduler_->Enqueue(stats, request);
+  return Status::Success;
 }
 
 void

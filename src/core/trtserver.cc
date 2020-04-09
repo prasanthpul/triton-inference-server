@@ -533,9 +533,11 @@ class TrtInferenceRequest {
 //
 class TrtServerResponse {
  public:
+#if 0
   TrtServerResponse(
       const ni::Status& infer_status, const std::string& id_str,
       const std::shared_ptr<ni::InferResponseProvider>& provider);
+#endif
   TRTSERVER_Error* Status() const;
 #ifdef TRTIS_ENABLE_GRPC_V2
   const std::string& IdStr() const { return id_str_; }
@@ -551,12 +553,14 @@ class TrtServerResponse {
   std::shared_ptr<ni::InferResponseProvider> response_provider_;
 };
 
+#if 0
 TrtServerResponse::TrtServerResponse(
     const ni::Status& infer_status, const std::string& id_str,
     const std::shared_ptr<ni::InferResponseProvider>& provider)
     : infer_status_(infer_status), id_str_(id_str), response_provider_(provider)
 {
 }
+#endif
 
 TRTSERVER_Error*
 TrtServerResponse::Status() const
@@ -1643,81 +1647,8 @@ TRTSERVER_ServerInferAsync(
     void* response_allocator_userp, TRTSERVER_InferenceCompleteFn_t complete_fn,
     void* complete_userp)
 {
-  ni::InferenceServer* lserver = reinterpret_cast<ni::InferenceServer*>(server);
-  TrtInferenceRequest* ltrtrequest =
-      reinterpret_cast<TrtInferenceRequest*>(request_provider);
-  TrtServerResponseAllocator* lresponsealloc =
-      reinterpret_cast<TrtServerResponseAllocator*>(response_allocator);
-
-  const auto& lrequest = ltrtrequest->Request();
-  const auto& lbackend = ltrtrequest->Backend();
-
-  ltrtrequest->SetResponse(nullptr);
-  RETURN_IF_STATUS_ERROR(lrequest->PrepareForInference());
-
-#ifdef TRTIS_ENABLE_STATS
-  auto infer_stats = std::make_shared<ni::ModelInferStats>(
-      lserver->StatusManager(), lrequest->ModelName());
-  infer_stats->CaptureTimestamp(
-      ni::ModelInferStats::TimestampKind::kRequestStart);
-  infer_stats->SetRequestedVersion(lrequest->RequestedModelVersion());
-  infer_stats->SetMetricReporter(lbackend->MetricReporter());
-  infer_stats->SetBatchSize(lrequest->BatchSize());
-  infer_stats->SetFailed(true);
-  infer_stats->SetTraceManager(
-      reinterpret_cast<ni::OpaqueTraceManager*>(trace_manager));
-  infer_stats->NewTrace();
-#else
-  auto infer_stats = std::make_shared<ni::ModelInferStats>();
-#endif  // TRTIS_ENABLE_STATS
-
-  std::shared_ptr<ni::InferResponseProvider> infer_response_provider;
-  {
-    std::shared_ptr<ni::InferResponseProvider> del_response_provider;
-    RETURN_IF_STATUS_ERROR(ni::InferResponseProvider::Create(
-        lrequest, lbackend->GetLabelProvider(), response_allocator,
-        lresponsealloc->AllocFn(), response_allocator_userp,
-        lresponsealloc->ReleaseFn(), lserver->ProtocolVersion(),
-        &del_response_provider));
-    infer_response_provider = std::move(del_response_provider);
-  }
-
-#ifdef TRTIS_ENABLE_GRPC_V2
-  const std::string& id_str = lrequest->IdStr();
-#else
-  const std::string id_str;
-#endif  // TRTIS_ENABLE_GRPC_V2
-
-  lserver->InferAsync(
-      lbackend, lrequest, infer_response_provider, infer_stats,
-      [infer_stats, id_str, trace_manager, infer_response_provider, server,
-       complete_fn, complete_userp](const ni::Status& status) mutable {
-        if (!status.IsOk()) {
-          LOG_VERBOSE(1) << "Infer failed: " << status.Message();
-        }
-
-#ifdef TRTIS_ENABLE_STATS
-        infer_stats->SetFailed(!status.IsOk());
-        infer_stats->CaptureTimestamp(
-            ni::ModelInferStats::TimestampKind::kRequestEnd);
-
-        // We must explicitly update the inference stats before
-        // sending the response... otherwise it is possible that the
-        // client will be able to query the stats after the response
-        // is received but before they've been updated for the request
-        // (this is especially important for testing).
-        infer_stats->Report();
-#endif  // TRTIS_ENABLE_STATS
-
-        TrtServerResponse* response =
-            new TrtServerResponse(status, id_str, infer_response_provider);
-        complete_fn(
-            server, trace_manager,
-            reinterpret_cast<TRTSERVER_InferenceResponse*>(response),
-            complete_userp);
-      });
-
-  return nullptr;  // Success
+  return TRTSERVER_ErrorNew(
+      TRTSERVER_ERROR_UNSUPPORTED, "TRTSERVER InferAsync not available");
 }
 
 #ifdef __cplusplus

@@ -26,7 +26,6 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include "src/core/backend.h"
 #include "src/core/model_config.h"
@@ -98,9 +97,7 @@ class InferenceResponse {
 
     ~Output();
 
-    // The name of the output tensor. There is no mutable operator for
-    // the name because it is used in a InferenceResponse map and a
-    // mutable method would allow it to get out-of-sync.
+    // The name of the output tensor.
     const std::string& Name() const { return name_; }
 
     // Data type of the output tensor.
@@ -185,10 +182,8 @@ class InferenceResponse {
     return (backend_ == nullptr) ? -1 : backend_->Version();
   }
 
-  const std::unordered_map<std::string, Output>& Outputs() const
-  {
-    return outputs_;
-  }
+  const Status& ResponseStatus() const { return status_; }
+  const std::vector<Output>& Outputs() const { return outputs_; }
 
   // Add an output to the response.
   Status AddOutput(
@@ -208,7 +203,8 @@ class InferenceResponse {
   std::shared_ptr<InferenceBackend> backend_;
 
   std::string id_;
-  std::unordered_map<std::string, Output> outputs_;
+  std::vector<Output> outputs_;
+  Status status_;
 
   // The allocation function and allocation object for responses
   // created by this factory. These pointers are not owned by this

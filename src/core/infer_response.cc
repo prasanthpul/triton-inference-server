@@ -52,17 +52,10 @@ InferenceResponse::AddOutput(
     const std::string& name, const DataType datatype,
     const std::vector<int64_t>& shape)
 {
-  const auto& pr = outputs_.emplace(std::make_pair(
-      name, InferenceResponse::Output(
-                name, datatype, shape, allocator_, alloc_fn_, release_fn_,
-                alloc_userp_)));
-  if (!pr.second) {
-    return Status(
-        Status::Code::INVALID_ARG,
-        "output '" + name + "' already exists in response");
-  }
+  outputs_.emplace_back(
+      name, datatype, shape, allocator_, alloc_fn_, release_fn_, alloc_userp_);
 
-  LOG_VERBOSE(1) << "add response output: " << *this;
+  LOG_VERBOSE(1) << "add response output: " << outputs_.back();
 
   return Status::Success;
 }
@@ -153,10 +146,11 @@ operator<<(std::ostream& out, const InferenceResponse& response)
       << "response id: " << response.Id() << ", model: " << response.ModelName()
       << ", actual version: " << response.ActualModelVersion() << std::endl;
 
+  out << "status:" << response.ResponseStatus().AsString() << std::endl;
+
   out << "outputs:" << std::endl;
-  for (const auto& itr : response.Outputs()) {
-    out << "[0x" << std::addressof(itr.second) << "] " << itr.second
-        << std::endl;
+  for (const auto& output : response.Outputs()) {
+    out << "[0x" << std::addressof(output) << "] " << output << std::endl;
   }
 
   return out;

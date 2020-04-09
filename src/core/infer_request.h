@@ -339,6 +339,10 @@ class InferenceRequest {
   // Prepare this request for inference.
   Status PrepareForInference();
 
+  // Run this inference request using the backend associated with the
+  // request.
+  Status Run();
+
  private:
   friend std::ostream& operator<<(
       std::ostream& out, const InferenceRequest& request);

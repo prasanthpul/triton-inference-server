@@ -84,11 +84,9 @@ class InferenceBackend {
   // Run inference using the provided request to produce outputs in the provide
   // response. The inference will run asynchronously and "OnCompleteHandleInfer"
   // callback will be called once the inference is completed
-  void Run(
+  Status Run(
       const std::shared_ptr<ModelInferStats>& stats,
-      const std::shared_ptr<InferenceRequest>& request,
-      const std::shared_ptr<InferResponseProvider>& response_provider,
-      std::function<void(const Status&)> OnCompleteHandleInfer);
+      const std::shared_ptr<InferenceRequest>& request);
 
   uint32_t DefaultPriorityLevel() const { return default_priority_level_; }
 

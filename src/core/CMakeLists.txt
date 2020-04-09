@@ -216,6 +216,7 @@ set(
   nvtx.h
   pinned_memory_manager.h
   provider.h
+  response_allocator.h
   sync_queue.h
   scheduler.h
   scheduler_utils.h
