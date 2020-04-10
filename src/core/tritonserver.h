@@ -368,6 +368,14 @@ TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_TraceParentId(
 /// Object representing a manager for initiating traces.
 ///
 
+/// Type for trace manager release callback function. The callback
+/// function takes ownership of the TRITONSERVER_TraceManager
+/// object. The 'userp' data is the same as what is supplied in the
+/// call to TRITONSERVER_ServerInferAsync.
+typedef void (*TRITONSERVER_TraceManagerReleaseFn_t)(
+    TRITONSERVER_Server* server, TRITONSERVER_TraceManager* trace_manager,
+    void* userp);
+
 /// Type for trace creation callback function. This callback function
 /// is used when a model execution is initiated within the request, if the
 /// request is to be traced. The user should call TRITONSERVER_TraceNew and
@@ -424,6 +432,22 @@ typedef enum tritonserver_requestflag_enum {
   TRITONSERVER_REQUEST_FLAG_SEQUENCE_START = 1,
   TRITONSERVER_REQUEST_FLAG_SEQUENCE_END = 2
 } TRITONSERVER_Request_Flag;
+
+/// Type for inference request release callback function. The callback
+/// function takes ownership of the TRITONSERVER_InferenceRequest
+/// object. The 'userp' data is the same as what is supplied in the
+/// call to TRITONSERVER_ServerInferAsync.
+typedef void (*TRITONSERVER_InferenceRequestReleaseFn_t)(
+    TRITONSERVER_Server* server, TRITONSERVER_InferenceRequest* request,
+    void* userp);
+
+/// Type for inference response callback function. The callback
+/// function takes ownership of the TRITONSERVER_InferenceResponse
+/// object. The 'userp' data is the same as what is supplied in the
+/// call to TRITONSERVER_ServerInferAsync.
+typedef void (*TRITONSERVER_InferenceResponseFn_t)(
+    TRITONSERVER_Server* server, TRITONSERVER_InferenceResponse* response,
+    void* userp);
 
 /// Create a new inference request object.
 /// \param inference_request Returns the new request object.
@@ -632,6 +656,45 @@ TRITONSERVER_EXPORT TRITONSERVER_Error*
 TRITONSERVER_InferenceRequestSetRequestedOutputClassificationCount(
     TRITONSERVER_InferenceRequest* inference_request, const char* name,
     uint32_t count);
+
+/// Set the release callback the an inference request. The release
+/// callback is called by Triton to return ownership of the request
+/// object.
+///
+/// \param inference_request The request object.
+/// \param request_release_fn The function called to return ownership
+/// of the 'inference_request' object.
+/// \param request_release_userp User-provided pointer that is
+/// delivered to the 'request_release_fn' callback.
+/// \return a TRITONSERVER_Error indicating success or failure.
+TRITONSERVER_EXPORT TRITONSERVER_Error*
+TRITONSERVER_InferenceRequestSetReleaseCallback(
+    TRITONSERVER_InferenceRequest* inference_request,
+    TRITONSERVER_InferenceRequestReleaseFn_t request_release_fn,
+    void* request_release_userp);
+
+/// Set the allocator and response callback for an inference
+/// request. The allocator is used to allocate buffers for any output
+/// tensors included in responses that are produced for this
+/// request. The response callback is called to return response
+/// objects representing responses produced for this request.
+///
+/// \param inference_request The request object.
+/// \param response_allocator The TRITONSERVER_ResponseAllocator to use
+/// to allocate buffers to hold inference results.
+/// \param response_allocator_userp User-provided pointer that is
+/// delivered to the response allocator's allocation function.
+/// \param response_fn The function called to deliver an inference
+/// response for this request.
+/// \param response_userp User-provided pointer that is delivered to
+/// the 'response_fn' callback.
+/// \return a TRITONSERVER_Error indicating success or failure.
+TRITONSERVER_EXPORT TRITONSERVER_Error*
+TRITONSERVER_InferenceRequestSetResponseCallback(
+    TRITONSERVER_InferenceRequest* inference_request,
+    TRITONSERVER_ResponseAllocator* response_allocator,
+    void* response_allocator_userp,
+    TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp);
 
 /// TRITONSERVER_InferenceResponse
 ///
@@ -1068,52 +1131,25 @@ TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_ServerUnloadModel(
 TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_ServerMetrics(
     TRITONSERVER_Server* server, TRITONSERVER_Metrics** metrics);
 
-/// Type for inference request release callback function. The callback
-/// function takes ownership of the TRITONSERVER_InferenceRequest
-/// object. The 'userp' data is the same as what is supplied in the
-/// call to TRITONSERVER_ServerInferAsync.
-typedef void (*TRITONSERVER_InferenceRequestReleaseFn_t)(
-    TRITONSERVER_Server* server, TRITONSERVER_InferenceRequest* request,
-    void* userp);
-
-/// Type for inference response callback function. The callback
-/// function takes ownership of the TRITONSERVER_InferenceResponse
-/// object. The 'userp' data is the same as what is supplied in the
-/// call to TRITONSERVER_ServerInferAsync.
-typedef void (*TRITONSERVER_InferenceResponseFn_t)(
-    TRITONSERVER_Server* server, TRITONSERVER_InferenceResponse* response,
-    void* userp);
-
-/// Type for trace manager release callback function. The callback
-/// function takes ownership of the TRITONSERVER_TraceManager
-/// object. The 'userp' data is the same as what is supplied in the
-/// call to TRITONSERVER_ServerInferAsync.
-typedef void (*TRITONSERVER_TraceManagerReleaseFn_t)(
-    TRITONSERVER_Server* server, TRITONSERVER_TraceManager* trace_manager,
-    void* userp);
-
 /// Perform inference using the meta-data and inputs supplied by the
-/// 'inference_request'. The caller releases ownership of
-/// 'inference_request' and must not access it in any way after this
-/// call, until ownership is returned via the 'request_release_fn'
-/// callback. Similarly, the caller releases ownership of
-/// 'trace_manager' and must not access it in any way after this call,
-/// until ownership is returned via the 'trace_release_fn' callback.
+/// 'inference_request'. If the function returns success, then the
+/// caller releases ownership of 'inference_request' and must not
+/// access it in any way after this call, until ownership is returned
+/// via the 'request_release_fn' callback registered in the request
+/// object with
+/// TRITONSERVER_InferenceRequestSetReleaseCallback. Similarly, the
+/// caller releases ownership of 'trace_manager' and must not access
+/// it in any way after this call, until ownership is returned via the
+/// 'trace_release_fn' callback. If the function returns a non-success
+/// error then the caller retains ownership of both
+/// 'inference_request' and 'trace_manager'.
+///
+/// Responses produced for this request are returned using the
+/// allocator and callback register with the request by
+/// TRITONSERVER_InferenceRequestSetResponseCallback.
 ///
 /// \param server The inference server object.
 /// \param inference_request The request object.
-/// \param response_allocator The TRITONSERVER_ResponseAllocator to use
-/// to allocate buffers to hold inference results.
-/// \param response_allocator_userp User-provided pointer that is
-/// delivered to the response allocator's allocation function.
-/// \param request_release_fn The function called to return ownership
-/// of the 'inference_request' object.
-/// \param request_release_userp User-provided pointer that is
-/// delivered to the 'request_release_fn' callback.
-/// \param response_fn The function called to deliver an inference
-/// response for this request.
-/// \param response_userp User-provided pointer that is delivered to
-/// the 'response_fn' callback.
 /// \param trace_manager The trace manager object for this request, or
 /// nullptr if no tracing.
 /// \param trace_release_fn The function called to return ownership of
@@ -1124,11 +1160,7 @@ typedef void (*TRITONSERVER_TraceManagerReleaseFn_t)(
 TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_ServerInferAsync(
     TRITONSERVER_Server* server,
     TRITONSERVER_InferenceRequest* inference_request,
-    TRITONSERVER_ResponseAllocator* response_allocator,
-    void* response_allocator_userp,
-    TRITONSERVER_InferenceRequestReleaseFn_t request_release_fn,
-    void* request_release_userp, TRITONSERVER_InferenceResponseFn_t response_fn,
-    void* response_userp, TRITONSERVER_TraceManager* trace_manager,
+    TRITONSERVER_TraceManager* trace_manager,
     TRITONSERVER_TraceManagerReleaseFn_t trace_release_fn,
     void* trace_release_userp);
 

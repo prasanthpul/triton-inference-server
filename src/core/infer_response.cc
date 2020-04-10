@@ -39,7 +39,7 @@ InferenceResponseFactory::CreateResponse(
     std::unique_ptr<InferenceResponse>* response) const
 {
   response->reset(new InferenceResponse(
-      backend_, id_, allocator_, alloc_fn_, release_fn_, alloc_userp_));
+      backend_, id_, allocator_, alloc_userp_, response_fn_, response_userp_));
 
   return Status::Success;
 }

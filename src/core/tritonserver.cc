@@ -1078,6 +1078,35 @@ TRITONSERVER_InferenceRequestSetRequestedOutputClassificationCount(
   return nullptr;  // Success
 }
 
+TRITONSERVER_Error*
+TRITONSERVER_InferenceRequestSetReleaseCallback(
+    TRITONSERVER_InferenceRequest* inference_request,
+    TRITONSERVER_InferenceRequestReleaseFn_t request_release_fn,
+    void* request_release_userp)
+{
+  ni::InferenceRequest* lrequest =
+      reinterpret_cast<ni::InferenceRequest*>(inference_request);
+  RETURN_IF_STATUS_ERROR(
+      lrequest->SetReleaseCallback(request_release_fn, request_release_userp));
+  return nullptr;  // Success
+}
+
+TRITONSERVER_Error*
+TRITONSERVER_InferenceRequestSetResponseCallback(
+    TRITONSERVER_InferenceRequest* inference_request,
+    TRITONSERVER_ResponseAllocator* response_allocator,
+    void* response_allocator_userp,
+    TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+{
+  ni::InferenceRequest* lrequest =
+      reinterpret_cast<ni::InferenceRequest*>(inference_request);
+  ni::ResponseAllocator* lalloc =
+      reinterpret_cast<ni::ResponseAllocator*>(response_allocator);
+  RETURN_IF_STATUS_ERROR(lrequest->SetResponseCallback(
+      *lallocator, response_allocator_userp, response_fn, response_userp));
+  return nullptr;  // Success
+}
+
 //
 // TRITONSERVER_InferenceResponse
 //
@@ -1644,35 +1673,44 @@ TRITONSERVER_Error*
 TRITONSERVER_ServerInferAsync(
     TRITONSERVER_Server* server,
     TRITONSERVER_InferenceRequest* inference_request,
-    TRITONSERVER_ResponseAllocator* response_allocator,
-    void* response_allocator_userp,
-    TRITONSERVER_InferenceRequestReleaseFn_t request_release_fn,
-    void* request_release_userp, TRITONSERVER_InferenceResponseFn_t response_fn,
-    void* response_userp, TRITONSERVER_TraceManager* trace_manager,
+    TRITONSERVER_TraceManager* trace_manager,
     TRITONSERVER_TraceManagerReleaseFn_t trace_release_fn,
     void* trace_release_userp)
 {
   ni::InferenceServer* lserver = reinterpret_cast<ni::InferenceServer*>(server);
   ni::InferenceRequest* lrequest =
       reinterpret_cast<ni::InferenceRequest*>(inference_request);
-  ni::ResponseAllocator* lresponsealloc =
-      reinterpret_cast<ni::ResponseAllocator*>(response_allocator);
 
   RETURN_IF_STATUS_ERROR(lrequest->PrepareForInference());
-
-  lrequest->SetResponseAllocator(lresponsealloc, response_allocator_userp);
-  lrequest->SetReleaseCallback(request_release_fn, request_release_userp);
-  lrequest->SetResponseCallback(response_fn, response_userp);
 
   // FIXME trace manager should have callback set and then be set in
   // the inference request
 
-  Status err = lserver->InferAsync(lrequest);
+  // We wrap the request in a unique pointer to ensure that the
+  // request flows through inferencing with clear ownership.
+  //
+  // FIXME add a custom deleter that logs an error if ever called. We
+  // expect the request to never be destroyed during the inference
+  // flow... instead we expect it to be released from the unique
+  // pointer and its completion callback envoked.
+  std::unique_ptr<ni::InferenceRequest> ureq(lrequest);
+  Status err = lserver->InferAsync(std::move(ureq));
 
-  // FIXME
-  if (trace_manager != nullptr) {
+  // If there is error then should not release trace manager since in
+  // that case the caller retains ownership.
+  //
+  // FIXME, this release should not occur here... it should occur when
+  // trace manager is no longer in use by the requests or any
+  // response. So this code should be removed eventually.
+  if (err.IsOK() && (trace_manager != nullptr)) {
     trace_release_fn(server, trace_manager, trace_release_userp);
   }
+
+  // If there is error then ureq will still have 'lrequest' and we
+  // must release it from unique_ptr since the caller should retain
+  // ownership when there is error. If there is not an error the ureq
+  // == nullptr and so this release is a nop.
+  ureq.release();
 
   RETURN_IF_STATUS_ERROR(err);
   return nullptr;  // Success

@@ -375,12 +375,10 @@ InferenceServer::ModelReadyVersions(
 }
 
 Status
-InferenceServer::InferAsync(const std::shared_ptr<InferenceRequest>& request)
+InferenceServer::InferAsync(std::unique_ptr<InferenceRequest>& request)
 {
   if (ready_state_ != ServerReadyState::SERVER_READY) {
-    // FIXME
-    // OnCompleteInfer(Status(Status::Code::UNAVAILABLE, "Server not ready"));
-    return;
+    return Status(Status::Code::UNAVAILABLE, "Server not ready");
   }
 
   // FIXME Shouldn't need this... request keeps backend alive...
@@ -438,7 +436,7 @@ InferenceServer::InferAsync(const std::shared_ptr<InferenceRequest>& request)
       });
 #endif
 
-  return request->Run();
+  return InferenceRequest::Run(request);
 }
 
 Status

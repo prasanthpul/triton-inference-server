@@ -191,16 +191,15 @@ PriorityQueue::PolicyQueue::ApplyPolicy(
   return ((idx - queue_.size()) < delayed_queue_.size());
 }
 
-std::deque<Scheduler::Payload>
-PriorityQueue::PolicyQueue::ReleaseRejectedQueue()
+void
+PriorityQueue::PolicyQueue::ReleaseRejectedQueue(
+    std::deque<std::unique_ptr<InferenceRequest>>* requests)
 {
-  std::deque<Scheduler::Payload> res;
-  rejected_queue_.swap(res);
-  return res;
+  rejected_queue_.swap(*requests);
 }
 
-Scheduler::Payload&
-PriorityQueue::PolicyQueue::At(size_t idx)
+const std::unique_ptr<InterenceRequest>&
+PriorityQueue::PolicyQueue::At(size_t idx) const
 {
   if (idx < queue_.size()) {
     return queue_[idx];

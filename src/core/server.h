@@ -72,8 +72,11 @@ class InferenceServer {
   Status ModelReadyVersions(
       const std::string& model_name, std::vector<int64_t>* versions);
 
-  // Inference
-  Status InferAsync(const std::shared_ptr<InferenceRequest>& request);
+  // Inference. If Status::Success is returned then this function has
+  // taken ownership of the request object and so 'request' will be
+  // nullptr. If non-success is returned then the caller still retains
+  // ownership of 'request'.
+  Status InferAsync(std::unique_ptr<InferenceRequest>& request);
 
   // Update the ServerStatus object with the status of the model. If
   // 'model_name' is empty, update with the status of all models.

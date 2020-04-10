@@ -29,14 +29,12 @@
 #include "src/core/backend_context.h"
 #include "src/core/label_provider.h"
 #include "src/core/model_config.pb.h"
-#include "src/core/provider.h"
 #include "src/core/scheduler.h"
 #include "src/core/status.h"
 
 namespace nvidia { namespace inferenceserver {
 
 class InferenceRequest;
-class InferResponseProvider;
 class MetricModelReporter;
 
 //
@@ -81,12 +79,13 @@ class InferenceBackend {
       const std::string& path, const ModelConfig& config,
       const std::string& platform);
 
-  // Run inference using the provided request to produce outputs in the provide
-  // response. The inference will run asynchronously and "OnCompleteHandleInfer"
-  // callback will be called once the inference is completed
+  // Run inference using the provided request. If Status::Success is
+  // returned then this function has taken ownership of the request
+  // object and so 'request' will be nullptr. If non-success is
+  // returned then the caller still retains ownership of 'request'.
   Status Run(
       const std::shared_ptr<ModelInferStats>& stats,
-      const std::shared_ptr<InferenceRequest>& request);
+      std::unique_ptr<InferenceRequest>& request);
 
   uint32_t DefaultPriorityLevel() const { return default_priority_level_; }
 
@@ -101,7 +100,7 @@ class InferenceBackend {
 
     std::string sample_name_;
     size_t batch_size_;
-    std::shared_ptr<InferenceRequest> request_;
+    std::unique_ptr<InferenceRequest> request_;
 
     // Placeholder for input data
     std::unique_ptr<AllocatedMemory> zero_data_;
@@ -112,8 +111,8 @@ class InferenceBackend {
   // Run model on the context associated with 'runner_idx' to
   // execute for one or more requests.
   virtual void Run(
-      uint32_t runner_idx, std::vector<Scheduler::Payload>* payloads,
-      std::function<void(Status)> OnCompleteQueuedPayloads);
+      uint32_t runner_idx,
+      std::vector<std::unique_ptr<InferenceRequest>>* requests);
 
   // Warm up context associated with 'runner_idx' with provided 'sample'.
   virtual void WarmUp(

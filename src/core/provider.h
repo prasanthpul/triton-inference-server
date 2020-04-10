@@ -31,7 +31,6 @@
 #include "src/core/api.pb.h"
 #include "src/core/constants.h"
 #include "src/core/grpc_service.pb.h"
-#include "src/core/infer_request.h"
 #include "src/core/memory.h"
 #include "src/core/model_config.h"
 #include "src/core/status.h"
@@ -41,6 +40,7 @@
 namespace nvidia { namespace inferenceserver {
 
 class InferenceBackend;
+class InferenceRequest;
 class LabelProvider;
 
 //

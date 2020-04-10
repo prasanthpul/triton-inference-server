@@ -76,9 +76,9 @@ InferenceRequest::ActualModelVersion() const
   return backend_raw_->Version();
 }
 Status
-InferenceRequest::Run()
+InferenceRequest::Run(std::unique_ptr<InferenceRequest>& request)
 {
-  return backend_raw_->Run(nullptr, *this);
+  return request->backend_raw_->Run(nullptr, request);
 }
 
 Status
@@ -310,7 +310,7 @@ InferenceRequest::PrepareForInference()
 
   // Initially show the actual inputs to be only the original
   // inputs. If overrides are added later they will be added to
-  // inputs_.
+  // 'inputs_'.
   for (auto& pr : original_inputs_) {
     inputs_.emplace(std::make_pair(pr.first, std::addressof(pr.second)));
   }

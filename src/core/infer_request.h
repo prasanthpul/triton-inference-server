@@ -28,8 +28,10 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "src/core/infer_response.h"
 #include "src/core/memory.h"
 #include "src/core/model_config.h"
+#include "src/core/response_allocator.h"
 #include "src/core/status.h"
 #include "src/core/tritonserver.h"
 
@@ -45,8 +47,8 @@ class InferenceServer;
 
 //
 // An inference request. A request can be used multiple times for
-// inference but before each inference PrepareForInference() must be
-// called to verify and prepare the request. Verification involves
+// inference but before each inference run, PrepareForInference() must
+// be called to verify and prepare the request. Verification involves
 // ensuring that any changes made since the last inference are
 // valid. Preparing involves removing/resetting any state left over
 // from the previous inference.
@@ -138,6 +140,7 @@ class InferenceRequest {
         TRTSERVER_Memory_Type* memory_type, int64_t* memory_type_id) const;
 
    private:
+    DISALLOW_COPY_AND_ASSIGN(Input);
     friend std::ostream& operator<<(
         std::ostream& out, const InferenceRequest::Input& input);
 
@@ -171,6 +174,7 @@ class InferenceRequest {
     void SetClassificationCount(uint32_t c) { classification_cnt_ = c; }
 
    private:
+    DISALLOW_COPY_AND_ASSIGN(RequestedOutput);
     friend std::ostream& operator<<(
         std::ostream& out, const InferenceRequest::RequestedOutput& output);
 
@@ -336,14 +340,37 @@ class InferenceRequest {
   Status RemoveRequestedOutput(const std::string& name);
   Status RemoveAllRequestedOutputs();
 
+  // Initialize the release callback for the request.
+  Status SetRequestCallback(
+      TRITONSERVER_InferenceRequestReleaseFn_t release_fn, void* release_userp)
+  {
+    release_fn_ = release_fn;
+    release_userp_ = release_userp;
+    return Status::Success;
+  }
+
+  // Initialize the response factory that is to be used with any
+  // responses produced for this request.
+  Status SetResponseCallback(
+      const ResponseAllocator& allocator, void* alloc_userp,
+      TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+  {
+    response_factory_.reset(new InferenceResponseFactory(
+        backend_shared_, id_str_, allocator, alloc_userp, response_fn,
+        response_userp));
+    return Status::Success;
+  }
+
   // Prepare this request for inference.
   Status PrepareForInference();
 
   // Run this inference request using the backend associated with the
-  // request.
-  Status Run();
+  // request. This call takes ownership of the request object and so
+  // 'request' is nullptr on return.
+  static Status Run(std::unique_ptr<InferenceRequest>& request);
 
  private:
+  DISALLOW_COPY_AND_ASSIGN(InferenceRequest);
   friend std::ostream& operator<<(
       std::ostream& out, const InferenceRequest& request);
 
@@ -388,6 +415,16 @@ class InferenceRequest {
   std::unordered_map<std::string, std::shared_ptr<Input>> override_inputs_;
   std::unordered_map<std::string, Input*> inputs_;
   std::unordered_map<std::string, RequestedOutput> requested_outputs_;
+
+  // The release function and user pointer for this request.
+  TRITONSERVER_InferenceRequestReleaseFn_t release_fn_;
+  void* release_userp_;
+
+  // The response factory associated with this request. This is a
+  // shared pointer because the request can be reused multiple times
+  // with the same response factory, and in the backend ownership of
+  // the factory must be shared with the backend.
+  std::shared_ptr<InferenceResponseFactory> response_factory_;
 };
 
 std::ostream& operator<<(std::ostream& out, const InferenceRequest& request);

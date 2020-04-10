@@ -29,6 +29,7 @@
 #include <vector>
 #include "src/core/backend.h"
 #include "src/core/model_config.h"
+#include "src/core/response_allocator.h"
 #include "src/core/status.h"
 #include "src/core/tritonserver.h"
 
@@ -43,11 +44,11 @@ class InferenceResponseFactory {
  public:
   InferenceResponseFactory(
       const std::shared_ptr<InferenceBackend>& backend, const std::string& id,
-      TRITONSERVER_ResponseAllocator* allocator,
-      TRITONSERVER_ResponseAllocatorAllocFn_t alloc_fn,
-      TRITONSERVER_ResponseAllocatorReleaseFn_t release_fn, void* alloc_userp)
-      : backend_(backend), id_(id), allocator_(allocator), alloc_fn_(alloc_fn),
-        release_fn_(release_fn), alloc_userp_(alloc_userp)
+      const ResponseAllocator& allocator, void* alloc_userp,
+      TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+      : backend_(backend), id_(id), allocator_(allocator),
+        alloc_userp_(alloc_userp), response_fn_(response_fn),
+        response_userp_(response_userp)
   {
   }
 
@@ -63,16 +64,17 @@ class InferenceResponseFactory {
   // to handle the nullptr case.
   std::shared_ptr<InferenceBackend> backend_;
 
+  // The ID of the corresponding request that should be included in
+  // every response.
   std::string id_;
 
-  // The allocation function and allocation object for responses
-  // created by this factory. These pointers are not owned by this
-  // object and so should not be destroyed when the object is
-  // destroyed.
-  TRITONSERVER_ResponseAllocator* allocator_;
-  TRITONSERVER_ResponseAllocatorAllocFn_t alloc_fn_;
-  TRITONSERVER_ResponseAllocatorReleaseFn_t release_fn_;
+  // The response allocator and user pointer.
+  ResponseAllocator allocator_;
   void* alloc_userp_;
+
+  // The response callback function and user pointer.
+  TRITONSERVER_InferenceResponseFn_t response_fn_;
+  void* response_userp_;
 };
 
 //
@@ -163,11 +165,11 @@ class InferenceResponse {
   // InferenceResponse
   InferenceResponse(
       const std::shared_ptr<InferenceBackend>& backend, const std::string& id,
-      TRITONSERVER_ResponseAllocator* allocator,
-      TRITONSERVER_ResponseAllocatorAllocFn_t alloc_fn,
-      TRITONSERVER_ResponseAllocatorReleaseFn_t release_fn, void* alloc_userp)
-      : backend_(backend), id_(id), allocator_(allocator), alloc_fn_(alloc_fn),
-        release_fn_(release_fn), alloc_userp_(alloc_userp)
+      const ResponseAllocator& allocator, void* alloc_userp,
+      TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+      : backend_(backend), id_(id), allocator_(allocator),
+        alloc_userp_(alloc_userp), response_fn_(response_fn),
+        response_userp_(response_userp)
   {
   }
 
@@ -202,18 +204,20 @@ class InferenceResponse {
   // to handle the nullptr case.
   std::shared_ptr<InferenceBackend> backend_;
 
+  // The ID of the corresponding request that should be included in
+  // every response.
   std::string id_;
+
   std::vector<Output> outputs_;
   Status status_;
 
-  // The allocation function and allocation object for responses
-  // created by this factory. These pointers are not owned by this
-  // object and so should not be destroyed when the object is
-  // destroyed.
-  TRITONSERVER_ResponseAllocator* allocator_;
-  TRITONSERVER_ResponseAllocatorAllocFn_t alloc_fn_;
-  TRITONSERVER_ResponseAllocatorReleaseFn_t release_fn_;
+  // The response allocator and user pointer.
+  ResponseAllocator allocator_;
   void* alloc_userp_;
+
+  // The response callback function and user pointer.
+  TRITONSERVER_InferenceResponseFn_t response_fn_;
+  void* response_userp_;
 };
 
 std::ostream& operator<<(std::ostream& out, const InferenceResponse& response);

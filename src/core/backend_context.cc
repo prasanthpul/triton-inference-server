@@ -100,16 +100,16 @@ BackendContext::CreateCudaStream(
 bool
 BackendContext::SetInputBuffer(
     const std::string& name, const std::vector<size_t>& expected_byte_sizes,
-    std::vector<Scheduler::Payload>* payloads, InputInfo* input)
+    std::vector<std::unique_ptr<InferenceRequest>>* requests, InputInfo* input)
 {
-  return SetInputBuffer(name, expected_byte_sizes, payloads, stream_, input);
+  return SetInputBuffer(name, expected_byte_sizes, requests, stream_, input);
 }
 
 bool
 BackendContext::SetInputBuffer(
     const std::string& name, const std::vector<size_t>& expected_byte_sizes,
-    std::vector<Scheduler::Payload>* payloads, cudaStream_t stream,
-    InputInfo* input)
+    std::vector<std::unique_ptr<InferenceRequest>>* requests,
+    cudaStream_t stream, InputInfo* input)
 {
   bool cuda_copy = false;
 
@@ -119,15 +119,15 @@ BackendContext::SetInputBuffer(
       input->memory_type_, true, &candidate_type, &need_buffer);
   BufferInfo pinned_buffer_info{0, 0, {}};
 
-  // Visit the payloads in order and copy the input tensors to
+  // Visit the requests in order and copy the input tensors to
   // 'buffer'.
   size_t buffer_copy_offset = 0;
   for (size_t idx = 0; idx < expected_byte_sizes.size(); idx++) {
-    auto& payload = (*payloads)[idx];
+    auto& request = (*requests)[idx];
     const size_t expected_byte_size = expected_byte_sizes[idx];
 
     const InferenceRequest::Input* rinput;
-    Status status = payload.request_->ImmutableInput(name, &rinput);
+    Status status = request->ImmutableInput(name, &rinput);
     if (!status.IsOk()) {
       payload.status_ = status;
     } else {
@@ -179,7 +179,7 @@ BackendContext::SetInputBuffer(
 
             if (std::get<1>(pinned_buffer_info) > 0) {
               cuda_copy |= IssueIndirectInputBufferCopy(
-                  name, pinned_buffer_info, payloads, stream, input);
+                  name, pinned_buffer_info, requests, stream, input);
             }
             // always reset 'pinned_buffer_info' to maintain proper input offset
             pinned_buffer_info = BufferInfo{
@@ -208,7 +208,7 @@ BackendContext::SetInputBuffer(
     if (!payload.status_.IsOk()) {
       if (std::get<1>(pinned_buffer_info) > 0) {
         cuda_copy |= IssueIndirectInputBufferCopy(
-            name, pinned_buffer_info, payloads, stream, input);
+            name, pinned_buffer_info, requests, stream, input);
       }
       // reset 'pinned_buffer_info'
       pinned_buffer_info =
@@ -221,7 +221,7 @@ BackendContext::SetInputBuffer(
   // Issue pending indirect copy if any
   if (std::get<1>(pinned_buffer_info) > 0) {
     cuda_copy |= IssueIndirectInputBufferCopy(
-        name, pinned_buffer_info, payloads, stream, input);
+        name, pinned_buffer_info, requests, stream, input);
   }
 
   return cuda_copy;
@@ -252,8 +252,8 @@ bool
 BackendContext::IssueIndirectInputBufferCopy(
     const std::string& name,
     const BackendContext::BufferInfo& pinned_buffer_info,
-    std::vector<Scheduler::Payload>* payloads, cudaStream_t stream,
-    InputInfo* input)
+    std::vector<std::unique_ptr<InferenceRequest>>* requests,
+    cudaStream_t stream, InputInfo* input)
 {
   NVTX_RANGE(nvtx_, "IndirectInputBufferCopy");
 
@@ -266,7 +266,7 @@ BackendContext::IssueIndirectInputBufferCopy(
   std::unique_ptr<AllocatedMemory> local_indirect_buffer(
       new AllocatedMemory(pinned_buffer_size, mem_type, mem_id));
   char* buffer = local_indirect_buffer->MutableBuffer(&mem_type, &mem_id);
-  std::vector<size_t> payload_idxs;
+  std::vector<size_t> request_idxs;
 
   // If can't reserve the intermediate buffer, the copy should be
   // perform directly to input buffer
@@ -282,11 +282,11 @@ BackendContext::IssueIndirectInputBufferCopy(
   size_t src_byte_size;
   size_t buffer_offset = 0;
   for (const auto& data_info : std::get<2>(pinned_buffer_info)) {
-    payload_idxs.emplace_back(std::get<0>(data_info));
+    request_idxs.emplace_back(std::get<0>(data_info));
     const void* src_data = std::get<1>(data_info)->BufferAt(
         std::get<2>(data_info), &src_byte_size, &src_mem_type,
         &src_mem_type_id);
-    (*payloads)[payload_idxs.back()].status_ = CopyBuffer(
+    (*requests)[request_idxs.back()].status_ = CopyBuffer(
         name, src_mem_type, src_mem_type_id, mem_type, mem_id, src_byte_size,
         src_data, buffer + buffer_offset, stream, &cuda_used);
     buffer_offset += src_byte_size;
@@ -296,7 +296,7 @@ BackendContext::IssueIndirectInputBufferCopy(
   if (!direct_copy) {
     input->indirect_buffers_.emplace_back(
         std::move(local_indirect_buffer), input_offset,
-        std::move(payload_idxs));
+        std::move(request_idxs));
   }
 
   return cuda_copy;
@@ -306,8 +306,9 @@ bool
 BackendContext::SetShapeInputBuffer(
     const std::string& name, const int32_t total_batch_size,
     const int expected_byte_size, const bool support_batching,
-    Scheduler::Payload* payload, TRTSERVER_Memory_Type dst_memory_type,
-    int64_t dst_memory_type_id, char* input_buffer)
+    const std::unique_ptr<InferenceRequest>& request,
+    TRTSERVER_Memory_Type dst_memory_type, int64_t dst_memory_type_id,
+    char* input_buffer)
 {
   if (!payload->status_.IsOk()) {
     return false;
@@ -316,7 +317,7 @@ BackendContext::SetShapeInputBuffer(
   size_t buffer_copy_offset = support_batching ? sizeof(int32_t) : 0;
 
   const InferenceRequest::Input* rinput;
-  payload->status_ = payload->request_->ImmutableInput(name, &rinput);
+  payload->status_ = request->ImmutableInput(name, &rinput);
   if (!payload->status_.IsOk()) {
     return false;
   }
@@ -374,7 +375,7 @@ BackendContext::SetShapeInputBuffer(
 bool
 BackendContext::SetFixedSizeOutputBuffer(
     const std::string& name, const size_t batch1_byte_size, OutputInfo* output,
-    std::vector<Scheduler::Payload>* payloads)
+    std::vector<std::unique_ptr<InferenceRequest>>* requests)
 {
   bool cuda_copy = false;
   size_t output_offset = 0;
@@ -384,19 +385,17 @@ BackendContext::SetFixedSizeOutputBuffer(
       output->memory_type_, false, &candidate_type, &need_buffer);
   OutputBufferInfo pinned_buffer_info{0, 0, {}};
   output->indirect_buffers_.emplace_back();
-  for (size_t idx = 0; idx < payloads->size(); idx++) {
-    auto& payload = (*payloads)[idx];
-    const auto& irequest = payload.request_;
-    const size_t expected_byte_size = irequest->BatchSize() * batch1_byte_size;
+  for (size_t idx = 0; idx < requests->size(); idx++) {
+    auto& request = (*requests)[idx];
+    const size_t expected_byte_size = request->BatchSize() * batch1_byte_size;
 
-    // If 'payload' should have valid output (status ok) and
-    // if 'payload' requested this output then copy it from
+    // If 'request' should have valid output (status ok) and
+    // if 'request' requested this output then copy it from
     // 'output->output_buffer_'. If it did not request this output then just
     // skip it in the 'output->output_buffer_'.
-    auto process_payload = payload.status_.IsOk() &&
-                           (payload.response_provider_ != nullptr) &&
-                           payload.response_provider_->RequiresOutput(name);
-    if (process_payload) {
+    auto process_request =
+        payload.status_.IsOk() && request->RequiresOutput(name);
+    if (process_request) {
       TRTSERVER_Memory_Type dst_memory_type;
       int64_t dst_memory_type_id;
       void* buffer = nullptr;
@@ -468,7 +467,7 @@ BackendContext::SetFixedSizeOutputBuffer(
   // Issue pending indirect copy if any
   if (std::get<1>(pinned_buffer_info) > 0) {
     cuda_copy |= IssueIndirectOutputBufferCopy(
-        name, pinned_buffer_info, payloads, stream_, output);
+        name, pinned_buffer_info, requests, stream_, output);
   }
 
   // The last element in 'indirect_buffers_' is always a placeholder for next
@@ -483,8 +482,8 @@ bool
 BackendContext::IssueIndirectOutputBufferCopy(
     const std::string& name,
     const BackendContext::OutputBufferInfo& pinned_buffer_info,
-    std::vector<Scheduler::Payload>* payloads, cudaStream_t stream,
-    OutputInfo* output)
+    std::vector < std::unique_ptr<InferenceRequest> * requests,
+    cudaStream_t stream, OutputInfo* output)
 {
   bool cuda_copy = false;
   bool cuda_used = false;
@@ -534,7 +533,7 @@ BackendContext::SetOutputShapeTensorBuffer(
     const std::string& name, const int32_t* content,
     std::vector<int64_t>& content_shape, const bool support_batching,
     TRTSERVER_Memory_Type src_memory_type, int64_t src_memory_type_id,
-    std::vector<Scheduler::Payload>* payloads)
+    std::vector < std::unique_ptr<InferenceRequests> * requests)
 {
   if (content_shape.empty()) {
     return false;
@@ -598,14 +597,14 @@ BackendContext::SetOutputShapeTensorBuffer(
 Status
 BackendContext::GetContiguousInputContent(
     const std::string& name, TRTSERVER_Memory_Type memory_type,
-    int64_t memory_type_id, const Scheduler::Payload& payload,
+    int64_t memory_type_id, const std::unique_ptr<InferenceRequest>& request,
     const char** content, size_t* content_byte_size,
     std::unique_ptr<AllocatedMemory>* contiguous_buffer, bool* cuda_copy)
 {
   contiguous_buffer->reset();
 
   const InferenceRequest::Input* rinput;
-  RETURN_IF_ERROR(payload.request_->ImmutableInput(name, &rinput));
+  RETURN_IF_ERROR(request->ImmutableInput(name, &rinput));
 
   // Peek input buffers to check if data copy is necessary
   MemoryReference input_buffers;
@@ -733,7 +732,8 @@ BackendContext::CompareOutputDims(
 
 Status
 BackendContext::PeekShapeTensor(
-    const InferenceRequest::Input& input, const Scheduler::Payload& payload,
+    const InferenceRequest::Input& input,
+    const std::unique_ptr<InferenceRequest>& request,
     std::vector<int64_t>* shape)
 {
   // By default a backend doesn't support shape tensors.

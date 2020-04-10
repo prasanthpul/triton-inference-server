@@ -31,6 +31,7 @@
 #include "src/core/constants.h"
 #include "src/core/dynamic_batch_scheduler.h"
 #include "src/core/filesystem.h"
+#include "src/core/infer_request.h"
 #include "src/core/logging.h"
 #include "src/core/metric_model_reporter.h"
 #include "src/core/model_config_utils.h"
@@ -228,10 +229,9 @@ InferenceBackend::Init(
 Status
 InferenceBackend::Run(
     const std::shared_ptr<ModelInferStats>& stats,
-    const std::shared_ptr<InferenceRequest>& request)
+    std::unique_ptr<InferenceRequest>& request)
 {
-  // FIXME
-  // scheduler_->Enqueue(stats, request);
+  scheduler_->Enqueue(stats, request);
   return Status::Success;
 }
 
@@ -288,11 +288,17 @@ InferenceBackend::WarmUp(
   payloads.emplace_back(nullptr, sample.request_, nullptr, nullptr);
 
   // For batch-size > 1 make copies of the request to fill out the
-  // payloads
+  // payloads.
+  //
+  // FIXME can't copy InferenceRequest so need to add an explicit Copy
+  // functions or better to revisit sample creation to include the
+  // batch dimension so don't need this at all.
+#if 0
   for (size_t idx = 1; idx < sample.batch_size_; idx++) {
     auto request = std::make_shared<InferenceRequest>(*sample.request_);
     payloads.emplace_back(nullptr, request, nullptr, nullptr);
   }
+#endif
 
   // Unless necessary, simply invoke Run()
   Run(runner_idx, &payloads, OnCompleteWarmup);
@@ -369,8 +375,7 @@ InferenceBackend::GenerateWarmupData(std::vector<WarmupData>* samples)
     // populating requests for single run. FIXMEV2 once
     // protocol_version 2 is the only one remove SetBatchSize and
     // adjust the input/output tensors to have appropriate shape.
-    warmup_data.request_ =
-        std::make_shared<InferenceRequest>(this, Version(), 1);
+    warmup_data.request_.reset(new InferenceRequest(this, Version(), 1));
     warmup_data.request_->SetBatchSize(1);
 
     // Request all outputs
