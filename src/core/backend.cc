@@ -143,7 +143,7 @@ InferenceBackend::SetConfiguredScheduler(
   }
 
   auto OnWarmup = [this, &samples](uint32_t runner_idx) -> Status {
-    for (const auto& sample : samples) {
+    for (auto& sample : samples) {
       LOG_VERBOSE(1) << "model '" << sample.request_->ModelName()
                      << "' instance " << std::to_string(runner_idx)
                      << " is running warmup sample '" << sample.sample_name_
@@ -227,7 +227,7 @@ InferenceBackend::Init(
 }
 
 Status
-InferenceBackend::Run(
+InferenceBackend::Enqueue(
     const std::shared_ptr<ModelInferStats>& stats,
     std::unique_ptr<InferenceRequest>& request)
 {
@@ -237,33 +237,41 @@ InferenceBackend::Run(
 
 void
 InferenceBackend::Run(
-    uint32_t runner_idx, std::vector<Scheduler::Payload>* payloads,
-    std::function<void(Status)> OnCompleteQueuedPayloads)
+    uint32_t runner_idx,
+    std::vector<std::unique_ptr<InferenceRequest>>* requests)
 {
   // Each runner executes using the corresponding context...
   if (runner_idx >= contexts_.size()) {
-    OnCompleteQueuedPayloads(Status(
+    // FIXME, must send error response to all requests
+#if 0
+  OnCompleteQueuedPayloads(Status(
         Status::Code::INTERNAL,
         "unexpected runner index" + std::to_string(runner_idx) +
             ", max allowed " + std::to_string(contexts_.size())));
+#endif
     return;
   }
 
 #ifdef TRTIS_ENABLE_STATS
-  // Stop queue timer and start compute timer when the payload is
+#if 0  // FIXME stats
+  // Stop queue timer and start compute timer when the request is
   // scheduled to run
-  for (auto& payload : *payloads) {
+  for (auto& request : *requests) {
     if (payload.stats_ != nullptr) {
       payload.stats_->CaptureTimestamp(
           ModelInferStats::TimestampKind::kComputeStart);
       payload.stats_->SetGPUDevice(contexts_[runner_idx]->gpu_device_);
     }
   }
+#endif
 #endif  // TRTIS_ENABLE_STATS
 
-  Status status = contexts_[runner_idx]->Run(this, payloads);
+  // FIXME, should not return status.. expecting this run function to
+  // directly send responses for errors as necessary.
+  Status status = contexts_[runner_idx]->Run(this, requests);
 
 #ifdef TRTIS_ENABLE_STATS
+#if 0  // FIXME stats
   // Stop compute timers.
   for (auto& payload : *payloads) {
     if (payload.stats_ != nullptr) {
@@ -271,21 +279,23 @@ InferenceBackend::Run(
           ModelInferStats::TimestampKind::kComputeEnd);
     }
   }
+#endif
 #endif  // TRTIS_ENABLE_STATS
 
-  OnCompleteQueuedPayloads(status);
+  // FIXME remove this once Run about no longer returns Status
+  //  OnCompleteQueuedPayloads(status);
 }
 
 void
 InferenceBackend::WarmUp(
-    uint32_t runner_idx, const WarmupData& sample,
+    uint32_t runner_idx, WarmupData& sample,
     std::function<void(Status)> OnCompleteWarmup)
 {
-  std::vector<Scheduler::Payload> payloads;
+  std::vector<std::unique_ptr<InferenceRequest>> requests;
 
-  // Add the sample request directly to the payloads. For the case of
+  // Add the sample request directly to 'requests'. For the case of
   // batch-size 1 no other request is needed.
-  payloads.emplace_back(nullptr, sample.request_, nullptr, nullptr);
+  requests.emplace_back(std::move(sample.request_));
 
   // For batch-size > 1 make copies of the request to fill out the
   // payloads.
@@ -301,7 +311,7 @@ InferenceBackend::WarmUp(
 #endif
 
   // Unless necessary, simply invoke Run()
-  Run(runner_idx, &payloads, OnCompleteWarmup);
+  Run(runner_idx, &requests);
 }
 
 Status

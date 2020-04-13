@@ -140,7 +140,7 @@ struct BackendContext {
   bool SetShapeInputBuffer(
       const std::string& name, const int32_t total_batch_size,
       const int expected_byte_size, const bool support_batching,
-      const std::unique_ptr<InferenceRequest>& request,
+      std::unique_ptr<InferenceRequest>& request,
       TRTSERVER_Memory_Type dst_memory_type, int64_t dst_memory_type_id,
       char* input_buffer);
 

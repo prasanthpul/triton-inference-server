@@ -1100,10 +1100,10 @@ TRITONSERVER_InferenceRequestSetResponseCallback(
 {
   ni::InferenceRequest* lrequest =
       reinterpret_cast<ni::InferenceRequest*>(inference_request);
-  ni::ResponseAllocator* lalloc =
+  ni::ResponseAllocator* lallocator =
       reinterpret_cast<ni::ResponseAllocator*>(response_allocator);
   RETURN_IF_STATUS_ERROR(lrequest->SetResponseCallback(
-      *lallocator, response_allocator_userp, response_fn, response_userp));
+      lallocator, response_allocator_userp, response_fn, response_userp));
   return nullptr;  // Success
 }
 
@@ -1694,7 +1694,7 @@ TRITONSERVER_ServerInferAsync(
   // flow... instead we expect it to be released from the unique
   // pointer and its completion callback envoked.
   std::unique_ptr<ni::InferenceRequest> ureq(lrequest);
-  Status err = lserver->InferAsync(std::move(ureq));
+  ni::Status status = lserver->InferAsync(ureq);
 
   // If there is error then should not release trace manager since in
   // that case the caller retains ownership.
@@ -1702,7 +1702,7 @@ TRITONSERVER_ServerInferAsync(
   // FIXME, this release should not occur here... it should occur when
   // trace manager is no longer in use by the requests or any
   // response. So this code should be removed eventually.
-  if (err.IsOK() && (trace_manager != nullptr)) {
+  if (status.IsOk() && (trace_manager != nullptr)) {
     trace_release_fn(server, trace_manager, trace_release_userp);
   }
 
@@ -1712,7 +1712,7 @@ TRITONSERVER_ServerInferAsync(
   // == nullptr and so this release is a nop.
   ureq.release();
 
-  RETURN_IF_STATUS_ERROR(err);
+  RETURN_IF_STATUS_ERROR(status);
   return nullptr;  // Success
 }
 

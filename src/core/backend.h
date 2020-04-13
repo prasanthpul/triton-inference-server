@@ -79,11 +79,11 @@ class InferenceBackend {
       const std::string& path, const ModelConfig& config,
       const std::string& platform);
 
-  // Run inference using the provided request. If Status::Success is
-  // returned then this function has taken ownership of the request
-  // object and so 'request' will be nullptr. If non-success is
-  // returned then the caller still retains ownership of 'request'.
-  Status Run(
+  // Enqueue a request for execution. If Status::Success is returned
+  // then the backend has taken ownership of the request object and so
+  // 'request' will be nullptr. If non-success is returned then the
+  // caller still retains ownership of 'request'.
+  Status Enqueue(
       const std::shared_ptr<ModelInferStats>& stats,
       std::unique_ptr<InferenceRequest>& request);
 
@@ -99,6 +99,9 @@ class InferenceBackend {
     }
 
     std::string sample_name_;
+
+    // FIXME should not need batch_size_ here as it is available from
+    // 'request_'
     size_t batch_size_;
     std::unique_ptr<InferenceRequest> request_;
 
@@ -116,7 +119,7 @@ class InferenceBackend {
 
   // Warm up context associated with 'runner_idx' with provided 'sample'.
   virtual void WarmUp(
-      uint32_t runner_idx, const WarmupData& sample,
+      uint32_t runner_idx, WarmupData& sample,
       std::function<void(Status)> OnCompleteWarmup);
 
   // Set the configuration of the model being served.

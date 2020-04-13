@@ -26,6 +26,7 @@
 
 #include "src/core/infer_response.h"
 
+#include "src/core/backend.h"
 #include "src/core/logging.h"
 #include "src/core/server.h"
 
@@ -65,8 +66,7 @@ InferenceResponse::AddOutput(
     const std::string& name, const DataType datatype,
     const std::vector<int64_t>& shape)
 {
-  outputs_.emplace_back(
-      name, datatype, shape, allocator_, alloc_fn_, release_fn_, alloc_userp_);
+  outputs_.emplace_back(name, datatype, shape, allocator_, alloc_userp_);
 
   LOG_VERBOSE(1) << "add response output: " << outputs_.back();
 
@@ -87,8 +87,8 @@ InferenceResponse::Output::~Output()
 
 Status
 InferenceResponse::Output::Buffer(
-    void** buffer, size_t* buffer_byte_size,
-    TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id)
+    const void** buffer, size_t* buffer_byte_size,
+    TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id) const
 {
   *buffer = allocated_buffer_;
   *buffer_byte_size = allocated_buffer_byte_size_;
@@ -112,10 +112,12 @@ InferenceResponse::Output::AllocateBuffer(
   int64_t actual_memory_type_id = *memory_type_id;
   void* alloc_buffer_userp = nullptr;
 
-  RETURN_IF_TRITONSERVER_ERROR(alloc_fn_(
-      allocator_, name_.c_str(), buffer_byte_size, *memory_type,
-      *memory_type_id, alloc_userp_, buffer, &alloc_buffer_userp,
-      &actual_memory_type, &actual_memory_type_id));
+  RETURN_IF_TRITONSERVER_ERROR(allocator_->AllocFn()(
+      reinterpret_cast<TRITONSERVER_ResponseAllocator*>(
+          const_cast<ResponseAllocator*>(allocator_)),
+      name_.c_str(), buffer_byte_size, *memory_type, *memory_type_id,
+      alloc_userp_, buffer, &alloc_buffer_userp, &actual_memory_type,
+      &actual_memory_type_id));
 
   allocated_buffer_ = *buffer;
   allocated_buffer_byte_size_ = buffer_byte_size;
@@ -135,10 +137,11 @@ InferenceResponse::Output::ReleaseBuffer()
   TRITONSERVER_Error* err = nullptr;
 
   if (allocated_buffer_ != nullptr) {
-    err = release_fn_(
-        allocator_, allocated_buffer_, allocated_userp_,
-        allocated_buffer_byte_size_, allocated_memory_type_,
-        allocated_memory_type_id_);
+    err = allocator_->ReleaseFn()(
+        reinterpret_cast<TRITONSERVER_ResponseAllocator*>(
+            const_cast<ResponseAllocator*>(allocator_)),
+        allocated_buffer_, allocated_userp_, allocated_buffer_byte_size_,
+        allocated_memory_type_, allocated_memory_type_id_);
   }
 
   allocated_buffer_ = nullptr;

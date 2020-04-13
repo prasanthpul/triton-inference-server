@@ -510,6 +510,7 @@ class TrtInferenceRequest {
   const ni::Status& RequestStatus() const { return status_; }
   void SetRequestStatus(const ni::Status& s) { status_ = s; }
 
+#if 0
   const std::shared_ptr<ni::InferResponseProvider>& Response() const
   {
     return response_provider_;
@@ -518,71 +519,15 @@ class TrtInferenceRequest {
   {
     response_provider_ = r;
   }
+#endif
 
  private:
   std::shared_ptr<ni::InferenceBackend> backend_;
   std::shared_ptr<ni::InferenceRequest> request_;
   ni::Status status_;
-  std::shared_ptr<ni::InferResponseProvider> response_provider_;
+  //  std::shared_ptr<ni::InferResponseProvider> response_provider_;
 };
 
-//
-// TrtServerResponse
-//
-// Implementation for TRTSERVER_InferenceResponse.
-//
-class TrtServerResponse {
- public:
-#if 0
-  TrtServerResponse(
-      const ni::Status& infer_status, const std::string& id_str,
-      const std::shared_ptr<ni::InferResponseProvider>& provider);
-#endif
-  TRTSERVER_Error* Status() const;
-#ifdef TRTIS_ENABLE_GRPC_V2
-  const std::string& IdStr() const { return id_str_; }
-#endif  // TRTIS_ENABLE_GRPC_V2
-  const ni::InferResponseHeader& Header() const;
-  TRTSERVER_Error* OutputData(
-      const char* name, const void** base, size_t* byte_size,
-      TRTSERVER_Memory_Type* memory_type, int64_t* memory_type_id) const;
-
- private:
-  const ni::Status infer_status_;
-  const std::string id_str_;
-  std::shared_ptr<ni::InferResponseProvider> response_provider_;
-};
-
-#if 0
-TrtServerResponse::TrtServerResponse(
-    const ni::Status& infer_status, const std::string& id_str,
-    const std::shared_ptr<ni::InferResponseProvider>& provider)
-    : infer_status_(infer_status), id_str_(id_str), response_provider_(provider)
-{
-}
-#endif
-
-TRTSERVER_Error*
-TrtServerResponse::Status() const
-{
-  return TrtServerError::Create(infer_status_);
-}
-
-const ni::InferResponseHeader&
-TrtServerResponse::Header() const
-{
-  return response_provider_->ResponseHeader();
-}
-
-TRTSERVER_Error*
-TrtServerResponse::OutputData(
-    const char* name, const void** base, size_t* byte_size,
-    TRTSERVER_Memory_Type* memory_type, int64_t* memory_type_id) const
-{
-  RETURN_IF_STATUS_ERROR(response_provider_->OutputBufferContents(
-      name, base, byte_size, memory_type, memory_type_id));
-  return nullptr;  // Success
-}
 
 }  // namespace
 
@@ -1082,16 +1027,18 @@ TRTSERVER_InferenceRequestProviderSetInputData(
 TRTSERVER_Error*
 TRTSERVER_InferenceResponseDelete(TRTSERVER_InferenceResponse* response)
 {
-  TrtServerResponse* lresponse = reinterpret_cast<TrtServerResponse*>(response);
-  delete lresponse;
+  //  TrtServerResponse* lresponse =
+  //  reinterpret_cast<TrtServerResponse*>(response); delete lresponse;
   return nullptr;  // Success
 }
 
 TRTSERVER_Error*
 TRTSERVER_InferenceResponseStatus(TRTSERVER_InferenceResponse* response)
 {
-  TrtServerResponse* lresponse = reinterpret_cast<TrtServerResponse*>(response);
-  return lresponse->Status();
+  //  TrtServerResponse* lresponse =
+  //  reinterpret_cast<TrtServerResponse*>(response); return
+  //  lresponse->Status();
+  return nullptr;
 }
 
 #ifdef TRTIS_ENABLE_GRPC_V2
@@ -1099,8 +1046,9 @@ TRTSERVER_Error*
 TRTSERVER_InferenceResponseIdStr(
     TRTSERVER_InferenceResponse* response, const char** id)
 {
-  TrtServerResponse* lresponse = reinterpret_cast<TrtServerResponse*>(response);
-  *id = lresponse->IdStr().c_str();
+  //  TrtServerResponse* lresponse =
+  //  reinterpret_cast<TrtServerResponse*>(response); *id =
+  //  lresponse->IdStr().c_str();
   return nullptr;  // Success
 }
 #endif  // TRTIS_ENABLE_GRPC_V2
@@ -1109,14 +1057,14 @@ TRTSERVER_Error*
 TRTSERVER_InferenceResponseHeader(
     TRTSERVER_InferenceResponse* response, TRTSERVER_Protobuf** header)
 {
-  TrtServerResponse* lresponse = reinterpret_cast<TrtServerResponse*>(response);
-  TRTSERVER_Error* status = lresponse->Status();
-  if (status != nullptr) {
-    return status;
-  }
+  //  TrtServerResponse* lresponse =
+  //  reinterpret_cast<TrtServerResponse*>(response); TRTSERVER_Error* status =
+  //  lresponse->Status(); if (status != nullptr) {
+  //    return status;
+  //  }
 
-  TrtServerProtobuf* protobuf = new TrtServerProtobuf(lresponse->Header());
-  *header = reinterpret_cast<TRTSERVER_Protobuf*>(protobuf);
+  //  TrtServerProtobuf* protobuf = new TrtServerProtobuf(lresponse->Header());
+  //  *header = reinterpret_cast<TRTSERVER_Protobuf*>(protobuf);
   return nullptr;  // Success
 }
 
@@ -1126,9 +1074,11 @@ TRTSERVER_InferenceResponseOutputData(
     size_t* byte_size, TRTSERVER_Memory_Type* memory_type,
     int64_t* memory_type_id)
 {
-  TrtServerResponse* lresponse = reinterpret_cast<TrtServerResponse*>(response);
-  return lresponse->OutputData(
-      name, base, byte_size, memory_type, memory_type_id);
+  //  TrtServerResponse* lresponse =
+  //  reinterpret_cast<TrtServerResponse*>(response); return
+  //  lresponse->OutputData(
+  //      name, base, byte_size, memory_type, memory_type_id);
+  return nullptr;  // Success
 }
 
 //

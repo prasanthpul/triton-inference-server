@@ -43,6 +43,7 @@
 namespace nvidia { namespace inferenceserver {
 
 class InferenceBackend;
+class InferenceRequest;
 
 enum ModelControlMode { MODE_NONE, MODE_POLL, MODE_EXPLICIT };
 

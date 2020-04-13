@@ -42,9 +42,10 @@ class InferenceResponse;
 //
 class InferenceResponseFactory {
  public:
+  InferenceResponseFactory() = default;
   InferenceResponseFactory(
       const std::shared_ptr<InferenceBackend>& backend, const std::string& id,
-      const ResponseAllocator& allocator, void* alloc_userp,
+      const ResponseAllocator* allocator, void* alloc_userp,
       TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
       : backend_(backend), id_(id), allocator_(allocator),
         alloc_userp_(alloc_userp), response_fn_(response_fn),
@@ -68,8 +69,12 @@ class InferenceResponseFactory {
   // every response.
   std::string id_;
 
-  // The response allocator and user pointer.
-  ResponseAllocator allocator_;
+  // The response allocator and user pointer. The 'allocator_' is a
+  // raw pointer because it is owned by the client, and the client is
+  // responsible for ensuring that the lifetime of the allocator
+  // extends longer that any request or response that depend on the
+  // allocator.
+  const ResponseAllocator* allocator_;
   void* alloc_userp_;
 
   // The response callback function and user pointer.
@@ -87,13 +92,11 @@ class InferenceResponse {
    public:
     Output(
         const std::string& name, const DataType datatype,
-        const std::vector<int64_t>& shape,
-        TRITONSERVER_ResponseAllocator* allocator,
-        TRITONSERVER_ResponseAllocatorAllocFn_t alloc_fn,
-        TRITONSERVER_ResponseAllocatorReleaseFn_t release_fn, void* alloc_userp)
+        const std::vector<int64_t>& shape, const ResponseAllocator* allocator,
+        void* alloc_userp)
         : name_(name), datatype_(datatype), shape_(shape),
-          allocator_(allocator), alloc_fn_(alloc_fn), release_fn_(release_fn),
-          alloc_userp_(alloc_userp), allocated_buffer_(nullptr)
+          allocator_(allocator), alloc_userp_(alloc_userp),
+          allocated_buffer_(nullptr)
     {
     }
 
@@ -112,8 +115,8 @@ class InferenceResponse {
     // tensor's data. If no buffer is allocated 'buffer' will return
     // nullptr and the other returned values will be undefined.
     Status Buffer(
-        void** buffer, size_t* buffer_byte_size,
-        TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id);
+        const void** buffer, size_t* buffer_byte_size,
+        TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id) const;
 
     // Allocate the buffer that should be used for this output
     // tensor's data. 'buffer' must return a buffer of size
@@ -143,13 +146,8 @@ class InferenceResponse {
     DataType datatype_;
     std::vector<int64_t> shape_;
 
-    // The allocation function and allocation object for responses
-    // created by this factory. These pointers are not owned by this
-    // object and so should not be destroyed when the object is
-    // destroyed.
-    TRITONSERVER_ResponseAllocator* allocator_;
-    TRITONSERVER_ResponseAllocatorAllocFn_t alloc_fn_;
-    TRITONSERVER_ResponseAllocatorReleaseFn_t release_fn_;
+    // The response allocator and user pointer.
+    const ResponseAllocator* allocator_;
     void* alloc_userp_;
 
     // Information about the buffer allocated by
@@ -165,7 +163,7 @@ class InferenceResponse {
   // InferenceResponse
   InferenceResponse(
       const std::shared_ptr<InferenceBackend>& backend, const std::string& id,
-      const ResponseAllocator& allocator, void* alloc_userp,
+      const ResponseAllocator* allocator, void* alloc_userp,
       TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
       : backend_(backend), id_(id), allocator_(allocator),
         alloc_userp_(alloc_userp), response_fn_(response_fn),
@@ -205,7 +203,7 @@ class InferenceResponse {
   Status status_;
 
   // The response allocator and user pointer.
-  ResponseAllocator allocator_;
+  const ResponseAllocator* allocator_;
   void* alloc_userp_;
 
   // The response callback function and user pointer.

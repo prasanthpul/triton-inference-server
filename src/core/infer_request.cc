@@ -63,22 +63,22 @@ TrtMemTypeToTriton(TRTSERVER_Memory_Type mem_type)
   }
 }
 
-// FIXME these should be inline once provider is removed and we can
-// include backend.h in infer_request.h
 const std::string&
 InferenceRequest::ModelName() const
 {
   return backend_raw_->Name();
 }
+
 int64_t
 InferenceRequest::ActualModelVersion() const
 {
   return backend_raw_->Version();
 }
+
 Status
 InferenceRequest::Run(std::unique_ptr<InferenceRequest>& request)
 {
-  return request->backend_raw_->Run(nullptr, request);
+  return request->backend_raw_->Enqueue(nullptr, request);
 }
 
 Status
@@ -147,8 +147,9 @@ InferenceRequest::AddOriginalInput(
     const std::string& name, const std::vector<int64_t>& shape,
     const uint64_t batch_byte_size, InferenceRequest::Input** input)
 {
-  const auto& pr = original_inputs_.emplace(std::make_pair(
-      name, InferenceRequest::Input(name, shape, batch_byte_size)));
+  const auto& pr = original_inputs_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(name),
+      std::forward_as_tuple(name, shape, batch_byte_size));
   if (!pr.second) {
     return Status(
         Status::Code::INVALID_ARG,
@@ -170,8 +171,9 @@ InferenceRequest::AddOriginalInput(
     const std::string& name, const DataType datatype, const int64_t* shape,
     const uint64_t dim_count, InferenceRequest::Input** input)
 {
-  const auto& pr = original_inputs_.emplace(std::make_pair(
-      name, InferenceRequest::Input(name, datatype, shape, dim_count)));
+  const auto& pr = original_inputs_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(name),
+      std::forward_as_tuple(name, datatype, shape, dim_count));
   if (!pr.second) {
     return Status(
         Status::Code::INVALID_ARG,
@@ -256,8 +258,10 @@ Status
 InferenceRequest::AddRequestedOutput(
     const std::string& name, const uint32_t classification_cnt)
 {
-  const auto& pr = requested_outputs_.emplace(std::make_pair(
-      name, InferenceRequest::RequestedOutput(name, classification_cnt)));
+  const auto& pr = requested_outputs_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(name),
+      std::forward_as_tuple(name, classification_cnt));
+
   if (!pr.second) {
     return Status(
         Status::Code::INVALID_ARG, "output '" + name + "' already requested");

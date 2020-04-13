@@ -63,9 +63,13 @@ class PriorityQueue {
       const ModelQueuePolicy& default_queue_policy, uint32_t priority_levels,
       const ModelQueuePolicyMap queue_policy_map);
 
-  // Enqueue a request with priority set to 'priority_level'.
+  // Enqueue a request with priority set to 'priority_level'. If
+  // Status::Success is returned then the queue has taken ownership of
+  // the request object and so 'request' will be nullptr. If
+  // non-success is returned then the caller still retains ownership
+  // of 'request'.
   Status Enqueue(
-      uint32_t priority_level, std::unique_ptr<InferenceRequest>&& request);
+      uint32_t priority_level, std::unique_ptr<InferenceRequest>& request);
 
   // Dequeue the request at the front of the queue.
   Status Dequeue(std::unique_ptr<InferenceRequest>* request);
@@ -154,11 +158,15 @@ class PriorityQueue {
     {
     }
 
-    // Enqueue a request and set up its timeout accordingly.
-    Status Enqueue(std::unique_ptr<InferenceRequest>&& request);
+    // Enqueue a request and set up its timeout accordingly. If
+    // Status::Success is returned then the queue has taken ownership
+    // of the request object and so 'request' will be nullptr. If
+    // non-success is returned then the caller still retains ownership
+    // of 'request'.
+    Status Enqueue(std::unique_ptr<InferenceRequest>& request);
 
     // Dequeue the request at the front of the queue.
-    void Dequeue(std::unique_ptr<InferenceRequest>* request);
+    Status Dequeue(std::unique_ptr<InferenceRequest>* request);
 
     // Apply the queue policy to the request at 'idx'.
     // 'rejected_count' will be incremented by the number of the newly rejected

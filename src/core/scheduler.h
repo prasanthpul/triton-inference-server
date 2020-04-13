@@ -78,10 +78,11 @@ class Scheduler {
       const std::unique_ptr<InferenceRequest>& request,
       std::vector<int64_t>* shape)>;
 
-  // Enqueue a request with the scheduler. This function takes
-  // ownership of the request object and so 'request' will be nullptr
-  // on return.
-  virtual void Enqueue(
+  // Enqueue a request with the scheduler. If Status::Success is returned
+  // then the backend has taken ownership of the request object and so
+  // 'request' will be nullptr. If non-success is returned then the
+  // caller still retains ownership of 'request'.
+  virtual Status Enqueue(
       const std::shared_ptr<ModelInferStats>& stats,
       std::unique_ptr<InferenceRequest>& request) = 0;
 };

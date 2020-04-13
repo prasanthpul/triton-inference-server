@@ -341,7 +341,7 @@ class InferenceRequest {
   Status RemoveAllRequestedOutputs();
 
   // Initialize the release callback for the request.
-  Status SetRequestCallback(
+  Status SetReleaseCallback(
       TRITONSERVER_InferenceRequestReleaseFn_t release_fn, void* release_userp)
   {
     release_fn_ = release_fn;
@@ -352,14 +352,21 @@ class InferenceRequest {
   // Initialize the response factory that is to be used with any
   // responses produced for this request.
   Status SetResponseCallback(
-      const ResponseAllocator& allocator, void* alloc_userp,
+      const ResponseAllocator* allocator, void* alloc_userp,
       TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
   {
-    response_factory_.reset(new InferenceResponseFactory(
+    response_factory_ = InferenceResponseFactory(
         backend_shared_, id_str_, allocator, alloc_userp, response_fn,
-        response_userp));
+        response_userp);
     return Status::Success;
   }
+
+  // Explicit copy function... expected to be rarely used (currently
+  // only for the null request needed in the direct sequence
+  // batcher). Using explicit function because copy constructor
+  // disallowed to avoid accidentially introducing copies of this
+  // class.
+  InferenceRequest* Copy();
 
   // Prepare this request for inference.
   Status PrepareForInference();
@@ -368,6 +375,14 @@ class InferenceRequest {
   // request. This call takes ownership of the request object and so
   // 'request' is nullptr on return.
   static Status Run(std::unique_ptr<InferenceRequest>& request);
+
+  // Send an error response for this request. If 'status' is Success
+  // then no response is sent. If 'release_request' is true then the
+  // release callback is called for this request and ownership is
+  // given to the callback. Thus, if 'release_request' is true the
+  // caller no longer has ownership of this object and so should drop
+  // all references not access or destroy this object.
+  void RespondWithError(const Status& status, const bool release_request);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InferenceRequest);
@@ -420,11 +435,8 @@ class InferenceRequest {
   TRITONSERVER_InferenceRequestReleaseFn_t release_fn_;
   void* release_userp_;
 
-  // The response factory associated with this request. This is a
-  // shared pointer because the request can be reused multiple times
-  // with the same response factory, and in the backend ownership of
-  // the factory must be shared with the backend.
-  std::shared_ptr<InferenceResponseFactory> response_factory_;
+  // The response factory associated with this request.
+  InferenceResponseFactory response_factory_;
 };
 
 std::ostream& operator<<(std::ostream& out, const InferenceRequest& request);

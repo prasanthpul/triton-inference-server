@@ -176,7 +176,7 @@ DynamicBatchScheduler::~DynamicBatchScheduler()
   }
 }
 
-void
+Status
 DynamicBatchScheduler::Enqueue(
     const std::shared_ptr<ModelInferStats>& stats,
     std::unique_ptr<InferenceRequest>& request)
@@ -189,10 +189,10 @@ DynamicBatchScheduler::Enqueue(
   bool wake_runner = false;
   {
     std::lock_guard<std::mutex> lock(mu_);
-    enqueue_status = queue_.Enqueue(request->Priority(), std::move(request));
-    if (enqueue_status.IsOk()) {
-      queued_batch_size_ += request->BatchSize();
-    }
+
+    RETURN_IF_ERROR(queue_.Enqueue(request->Priority(), request));
+
+    queued_batch_size_ += request->BatchSize();
 
     // If there are any idle runners and the queued batch size is greater or
     // equal to next preferred batch size, then wake one up to service this
@@ -211,9 +211,7 @@ DynamicBatchScheduler::Enqueue(
     cv_.notify_one();
   }
 
-  if (!enqueue_status.IsOk()) {
-    OnComplete(enqueue_status);
-  }
+  return Status::Success;
 }
 
 void
@@ -283,7 +281,7 @@ DynamicBatchScheduler::SchedulerThread(
   while (!thread_exit->load()) {
     NVTX_RANGE(nvtx_, "DynamicBatchScheduler " + runner_id);
 
-    std::shared_ptr < std::vector<std::unique_ptr<InferenceRequest>> requests;
+    std::shared_ptr<std::vector<std::unique_ptr<InferenceRequest>>> requests;
     std::shared_ptr<std::vector<std::deque<std::unique_ptr<InferenceRequest>>>>
         rejected_requests;
     bool wake_thread = false;
@@ -412,21 +410,21 @@ DynamicBatchScheduler::SchedulerThread(
       }
     }
 
+// FIXME handle rejected request by sending appropriate response
+#if 0
     // Finish rejected requests if any
     if (rejected_requests != nullptr) {
       static Status rejected_status =
           Status(Status::Code::UNAVAILABLE, "Request timeout expired");
       for (auto& rejected_queue : *rejected_requests) {
         for (auto& rejected_request : rejected_queue) {
-// FIXME handle rejected request by sending appropriate response
-#if 0
           if (rejected_request.complete_function_ != nullptr) {
             rejected_request.complete_function_(rejected_status);
           }
-#endif
         }
       }
     }
+#endif
 
     // FIXME, this isn't really true anymore so needs to be revisited.
     //
@@ -581,6 +579,8 @@ DynamicBatchScheduler::GetDynamicBatch(const int64_t runner_id)
   return wait_ns / 1000;
 }
 
+// FIXME
+#if 0
 void
 DynamicBatchScheduler::FinalizePayloads(
     const uint32_t completion_id,
@@ -638,5 +638,6 @@ DynamicBatchScheduler::FinalizePayloads(
     }
   }
 }
+#endif
 
 }}  // namespace nvidia::inferenceserver

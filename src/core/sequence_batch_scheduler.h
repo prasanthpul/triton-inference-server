@@ -64,7 +64,7 @@ class SequenceBatchScheduler : public Scheduler {
       std::unique_ptr<Scheduler>* scheduler);
 
   // \see Scheduler::Enqueue()
-  void Enqueue(
+  Status Enqueue(
       const std::shared_ptr<ModelInferStats>& stats,
       std::unique_ptr<InferenceRequest>& request) override;
 
@@ -132,11 +132,13 @@ class SequenceBatchScheduler : public Scheduler {
   // Map from a request's correlation ID to the backlog queue
   // collecting requests for that correlation ID.
   using BacklogMap = std::unordered_map<
-      CorrelationID, std::shared_ptr<std::deque<std::unique_ptr<InferenceRequest>>>>;
+      CorrelationID,
+      std::shared_ptr<std::deque<std::unique_ptr<InferenceRequest>>>>;
   BacklogMap sequence_to_backlog_map_;
 
   // The ordered backlog of sequences waiting for a free sequenceslot.
-  std::deque<std::shared_ptr<std::deque<std::unique_ptr<InferenceRequest>>>> backlog_queues_;
+  std::deque<std::shared_ptr<std::deque<std::unique_ptr<InferenceRequest>>>>
+      backlog_queues_;
 
   // The batcher/sequence-slot locations ready to accept a new
   // sequence. Ordered from lowest sequence-slot-number to highest so
@@ -177,7 +179,8 @@ class SequenceBatch {
   virtual ~SequenceBatch() = default;
 
   // Enqueue a request into the appropriate queue for the requested
-  // sequence slot.
+  // sequence slot. This function takes ownership of 'request' so on
+  // request 'request' will be nullptr.
   virtual void Enqueue(
       const uint32_t seq_slot, const CorrelationID correlation_id,
       const std::shared_ptr<ModelInferStats>& stats,
@@ -186,7 +189,7 @@ class SequenceBatch {
  protected:
   bool CreateCorrelationIDControl(const ModelConfig& config);
   void SetControlTensors(
-      const std::shared_ptr<InferenceRequest>& irequest, const int32_t seq_slot,
+      std::unique_ptr<InferenceRequest>& irequest, const int32_t seq_slot,
       const CorrelationID corr_id, const bool not_ready = false);
 
   // The controlling scheduler.
@@ -251,8 +254,6 @@ class DirectSequenceBatch : public SequenceBatch {
       std::promise<bool>* is_initialized);
   ~DirectSequenceBatch();
 
-  // Enqueue a request into the appropriate queue for the requested
-  // sequence slot.
   void Enqueue(
       const uint32_t seq_slot, const CorrelationID correlation_id,
       const std::shared_ptr<ModelInferStats>& stats,
@@ -324,8 +325,6 @@ class OldestSequenceBatch : public SequenceBatch {
       std::promise<bool>* is_initialized);
   ~OldestSequenceBatch();
 
-  // Enqueue a request into the appropriate queue for the requested
-  // sequence slot.
   void Enqueue(
       const uint32_t seq_slot, const CorrelationID correlation_id,
       const std::shared_ptr<ModelInferStats>& stats,
