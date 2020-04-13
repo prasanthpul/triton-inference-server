@@ -34,7 +34,6 @@
 #include "src/core/dynamic_batch_scheduler.h"
 #include "src/core/logging.h"
 #include "src/core/model_config_utils.h"
-#include "src/core/provider.h"
 #include "src/core/server_status.h"
 
 namespace nvidia { namespace inferenceserver {
@@ -315,9 +314,7 @@ SequenceBatchScheduler::CreateBooleanControlTensors(
 void
 SequenceBatchScheduler::Enqueue(
     const std::shared_ptr<ModelInferStats>& stats,
-    const std::shared_ptr<InferenceRequest>& irequest,
-    const std::shared_ptr<InferResponseProvider>& response_provider,
-    std::function<void(const Status&)> OnComplete)
+    const std::shared_ptr<InferenceRequest>& irequest)
 {
 #ifdef TRTIS_ENABLE_STATS
   // Queue timer starts at the beginning of the queueing and
@@ -415,8 +412,7 @@ SequenceBatchScheduler::Enqueue(
     LOG_VERBOSE(1) << "Enqueuing CORRID " << correlation_id
                    << " into existing backlog: " << irequest->ModelName();
 
-    bl_itr->second->emplace_back(
-        stats, irequest, response_provider, OnComplete);
+    bl_itr->second->emplace_back(stats, irequest);
 
     // If the sequence is ending then forget correlation ID
     // connection to this backlog queue. If another sequence starts
@@ -442,7 +438,7 @@ SequenceBatchScheduler::Enqueue(
 
     auto backlog = std::make_shared<std::deque<Scheduler::Payload>>();
     backlog_queues_.push_back(backlog);
-    backlog->emplace_back(stats, irequest, response_provider, OnComplete);
+    backlog->emplace_back(stats, irequest);
     if (!seq_end) {
       sequence_to_backlog_map_[correlation_id] = std::move(backlog);
     }
@@ -469,8 +465,7 @@ SequenceBatchScheduler::Enqueue(
                  << batcher_idx << ", sequence slot " << seq_slot << ": "
                  << irequest->ModelName();
 
-  batchers_[batcher_idx]->Enqueue(
-      seq_slot, correlation_id, stats, irequest, response_provider, OnComplete);
+  batchers_[batcher_idx]->Enqueue(seq_slot, correlation_id, stats, irequest);
 }
 
 CorrelationID
@@ -640,13 +635,12 @@ SequenceBatchScheduler::ReaperThread(const int nice)
       LOG_VERBOSE(1) << "Reaper: force-ending CORRID " << idle_correlation_id
                      << " in batcher " << batcher_idx << ", slot " << seq_slot;
 
-      // A slot assignment is released by enqueuing a payload with
-      // null request, null providers and null completion
-      // callback. The scheduler thread will interpret the payload as
-      // meaning it should release the sequence slot but otherwise do
-      // nothing with the payload.
+      // A slot assignment is released by enqueuing a payload with a
+      // null request. The scheduler thread will interpret the payload
+      // as meaning it should release the sequence slot but otherwise
+      // do nothing with the payload.
       batchers_[batcher_idx]->Enqueue(
-          seq_slot, idle_correlation_id, nullptr, nullptr, nullptr, nullptr);
+          seq_slot, idle_correlation_id, nullptr, nullptr);
     }
 
     // Wait until the next idle timeout needs to be checked
@@ -872,17 +866,14 @@ void
 DirectSequenceBatch::Enqueue(
     const uint32_t seq_slot, const CorrelationID correlation_id,
     const std::shared_ptr<ModelInferStats>& stats,
-    const std::shared_ptr<InferenceRequest>& request,
-    const std::shared_ptr<InferResponseProvider>& response_provider,
-    std::function<void(const Status&)> OnComplete)
+    const std::shared_ptr<InferenceRequest>& request)
 {
   bool wake_runner = false;
 
   {
     std::lock_guard<std::mutex> lock(mu_);
 
-    queues_[seq_slot].emplace_back(
-        stats, request, response_provider, OnComplete);
+    queues_[seq_slot].emplace_back(stats, request);
 
     seq_slot_correlation_ids_[seq_slot] = correlation_id;
     max_active_seq_slot_ =
@@ -1014,7 +1005,7 @@ DirectSequenceBatch::SchedulerThread(
           // above it may now be empty...
           if (!queue.empty()) {
             // For NULL requests need an InferenceRequest that can be
-            // batched but has controls get to "not ready". Any
+            // batched but has controls set to "not ready". Any
             // request can serve this purpose so grab a copy of the
             // first one. This first request is also used to
             // initialize 'pending_batch_shapes' so we are sure that
@@ -1058,15 +1049,15 @@ DirectSequenceBatch::SchedulerThread(
         // Collect payloads from slot 0 to max_seq_slot.
         for (int32_t seq_slot = 0; seq_slot <= max_seq_slot; ++seq_slot) {
           bool end_of_sequence = false;
-          bool use_null_provider = false;
+          bool use_null_request = false;
           std::deque<Scheduler::Payload>& queue = queues_[seq_slot];
 
           // If 'seq_slot' doesn't have any requests then change the
-          // request provider to send dummy/null input tensors for
-          // this slot. We need this so that other payloads stay in
-          // the correct slot.
+          // request to send dummy/null input tensors for this
+          // slot. We need this so that other payloads stay in the
+          // correct slot.
           if (queue.empty()) {
-            use_null_provider = true;
+            use_null_request = true;
           }
           // If there are one or more tensors that don't support
           // ragged batch, then don't allow a payload into an existing
@@ -1075,7 +1066,7 @@ DirectSequenceBatch::SchedulerThread(
             if (!CompareWithPendingShape(
                     batcher_idx_, queue.front(), OnPeek_,
                     pending_batch_shapes)) {
-              use_null_provider = true;
+              use_null_request = true;
             }
           }
 
@@ -1083,8 +1074,8 @@ DirectSequenceBatch::SchedulerThread(
           // payload in the queue... Note that we reuse the same
           // request for all the NULL slots... this should be fine
           // bacause the backends should not modify a request.
-          if (use_null_provider) {
-            payloads->emplace_back(nullptr, null_irequest, nullptr, nullptr);
+          if (use_null_request) {
+            payloads->emplace_back(nullptr, null_irequest);
           } else {
             Scheduler::Payload& seq_slot_payload = queue.front();
             const auto& irequest = seq_slot_payload.request_;
@@ -1093,10 +1084,7 @@ DirectSequenceBatch::SchedulerThread(
             SetControlTensors(
                 irequest, seq_slot, seq_slot_correlation_ids_[seq_slot]);
 
-            payloads->emplace_back(
-                seq_slot_payload.stats_, irequest,
-                seq_slot_payload.response_provider_,
-                seq_slot_payload.complete_function_);
+            payloads->emplace_back(seq_slot_payload.stats_, irequest);
 
             queue.pop_front();
 
@@ -1352,9 +1340,7 @@ OldestSequenceBatch::CompleteAndNext(
         auto on_complete_fn = std::bind(
             &OldestSequenceBatch::CompleteAndNext, this, seq_slot,
             payload.complete_function_, std::placeholders::_1);
-        dynamic_batcher_->Enqueue(
-            payload.stats_, irequest, payload.response_provider_,
-            on_complete_fn);
+        dynamic_batcher_->Enqueue(payload.stats_, irequest);
       }
 
       queue.pop_front();
@@ -1397,9 +1383,7 @@ void
 OldestSequenceBatch::Enqueue(
     const uint32_t seq_slot, const CorrelationID correlation_id,
     const std::shared_ptr<ModelInferStats>& stats,
-    const std::shared_ptr<InferenceRequest>& request,
-    const std::shared_ptr<InferResponseProvider>& response_provider,
-    std::function<void(const Status&)> OnComplete)
+    const std::shared_ptr<InferenceRequest>& request)
 {
   // Queue the new request... if there isn't already a request in
   // flight then send one to the dynamic batcher immediately.
@@ -1408,7 +1392,7 @@ OldestSequenceBatch::Enqueue(
     std::lock_guard<std::mutex> lock(mu_);
 
     std::deque<Scheduler::Payload>& queue = queues_[seq_slot];
-    queue.emplace_back(stats, request, response_provider, OnComplete);
+    queue.emplace_back(stats, request);  // FIXME complete and next?
     in_flight = in_flight_[seq_slot];
   }
 

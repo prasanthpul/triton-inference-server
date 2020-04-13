@@ -47,6 +47,19 @@ InferenceResponseFactory::CreateResponse(
 //
 // InferenceResponse
 //
+const std::string&
+InferenceResponse::ModelName() const
+{
+  static const std::string unknown("<unknown>");
+  return (backend_ == nullptr) ? unknown : backend_->Name();
+}
+
+int64_t
+InferenceResponse::ActualModelVersion() const
+{
+  return (backend_ == nullptr) ? -1 : backend_->Version();
+}
+
 Status
 InferenceResponse::AddOutput(
     const std::string& name, const DataType datatype,

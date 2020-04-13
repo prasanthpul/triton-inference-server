@@ -27,7 +27,6 @@
 
 #include <string>
 #include <vector>
-#include "src/core/backend.h"
 #include "src/core/model_config.h"
 #include "src/core/response_allocator.h"
 #include "src/core/status.h"
@@ -35,6 +34,7 @@
 
 namespace nvidia { namespace inferenceserver {
 
+class InferenceBackend;
 class InferenceResponse;
 
 //
@@ -174,15 +174,8 @@ class InferenceResponse {
   }
 
   const std::string& Id() const { return id_; }
-  const std::string& ModelName() const
-  {
-    static const std::string unknown("<unknown>");
-    return (backend_ == nullptr) ? unknown : backend_->Name();
-  }
-  int64_t ActualModelVersion() const
-  {
-    return (backend_ == nullptr) ? -1 : backend_->Version();
-  }
+  const std::string& ModelName() const;
+  int64_t ActualModelVersion() const;
 
   const Status& ResponseStatus() const { return status_; }
   const std::vector<Output>& Outputs() const { return outputs_; }

@@ -182,7 +182,6 @@ set(
   model_config_utils.cc
   model_repository_manager.cc
   pinned_memory_manager.cc
-  provider.cc
   scheduler_utils.cc
   sequence_batch_scheduler.cc
   server.cc
@@ -215,7 +214,6 @@ set(
   model_repository_manager.h
   nvtx.h
   pinned_memory_manager.h
-  provider.h
   response_allocator.h
   sync_queue.h
   scheduler.h

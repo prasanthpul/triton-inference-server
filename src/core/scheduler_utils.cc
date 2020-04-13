@@ -29,7 +29,6 @@
 #include <cassert>
 #include "src/core/constants.h"
 #include "src/core/logging.h"
-#include "src/core/provider.h"
 
 namespace nvidia { namespace inferenceserver {
 

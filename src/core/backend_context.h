@@ -28,8 +28,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "src/core/infer_request.h"
+#include "src/core/memory.h"
 #include "src/core/model_config.h"
-#include "src/core/provider.h"
+#include "src/core/status.h"
+#include "src/core/trtserver.h"
 
 #ifdef TRTIS_ENABLE_GPU
 #include <cuda_runtime_api.h>

@@ -29,7 +29,6 @@
 #include "src/core/cuda_utils.h"
 #include "src/core/logging.h"
 #include "src/core/nvtx.h"
-#include "src/core/provider.h"
 
 namespace nvidia { namespace inferenceserver {
 

@@ -36,7 +36,6 @@
 #include "src/core/api.pb.h"
 #include "src/core/model_config.pb.h"
 #include "src/core/model_repository_manager.h"
-#include "src/core/provider.h"
 #include "src/core/server_status.h"
 #include "src/core/server_status.pb.h"
 #include "src/core/status.h"

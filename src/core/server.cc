@@ -46,7 +46,6 @@
 #include "src/core/model_config_utils.h"
 #include "src/core/model_repository_manager.h"
 #include "src/core/pinned_memory_manager.h"
-#include "src/core/provider.h"
 #include "src/core/server.h"
 #include "src/core/server_status.pb.h"
 
