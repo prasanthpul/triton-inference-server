@@ -128,7 +128,8 @@ BackendContext::SetInputBuffer(
     const InferenceRequest::Input* rinput;
     Status status = request->ImmutableInput(name, &rinput);
     if (!status.IsOk()) {
-      request->RespondWithError(status, true /* release_request */);
+      InferenceRequest::RespondWithError(
+          *request, status, true /* release_request */);
       request.release();
     } else {
       const std::shared_ptr<Memory>& data = rinput->Data();
@@ -149,7 +150,8 @@ BackendContext::SetInputBuffer(
         }
 
         if ((copied_byte_size + content_byte_size) > expected_byte_size) {
-          request->RespondWithError(
+          InferenceRequest::RespondWithError(
+              *request,
               Status(
                   Status::Code::INVALID_ARG,
                   "unexpected size " +
@@ -179,7 +181,8 @@ BackendContext::SetInputBuffer(
                 input->input_buffer_ + buffer_copy_offset + copied_byte_size,
                 stream, &cuda_used);
             if (!status.IsOk()) {
-              request->RespondWithError(status, true /* release_request */);
+              InferenceRequest::RespondWithError(
+                  *request, status, true /* release_request */);
               request.release();
             }
 
@@ -202,7 +205,8 @@ BackendContext::SetInputBuffer(
       }
 
       if ((request != nullptr) && (copied_byte_size != expected_byte_size)) {
-        request->RespondWithError(
+        InferenceRequest::RespondWithError(
+            *request,
             Status(
                 Status::Code::INTERNAL,
                 "expected " + std::to_string(expected_byte_size) +
@@ -303,7 +307,8 @@ BackendContext::IssueIndirectInputBufferCopy(
         src_data, buffer + buffer_offset, stream, &cuda_used);
     if (!status.IsOk()) {
       auto& request = (*requests)[request_idxs.back()];
-      request->RespondWithError(status, true /* release_request */);
+      InferenceRequest::RespondWithError(
+          *request, status, true /* release_request */);
       request.release();
     }
 
@@ -337,7 +342,8 @@ BackendContext::SetShapeInputBuffer(
   const InferenceRequest::Input* rinput;
   Status status = request->ImmutableInput(name, &rinput);
   if (!status.IsOk()) {
-    request->RespondWithError(status, true /* release_request */);
+    InferenceRequest::RespondWithError(
+        *request, status, true /* release_request */);
     request.release();
     return false;
   }
@@ -354,13 +360,15 @@ BackendContext::SetShapeInputBuffer(
       0 /* idx */, &content, &content_byte_size, &src_memory_type,
       &src_memory_type_id);
   if (!status.IsOk()) {
-    request->RespondWithError(status, true /* release_request */);
+    InferenceRequest::RespondWithError(
+        *request, status, true /* release_request */);
     request.release();
     return false;
   }
 
   if ((expected_byte_size) != (int)content_byte_size) {
-    request->RespondWithError(
+    InferenceRequest::RespondWithError(
+        *request,
         Status(
             Status::Code::INVALID_ARG,
             "unexpected size " + std::to_string(content_byte_size) +
@@ -380,7 +388,8 @@ BackendContext::SetShapeInputBuffer(
         dst_memory_type_id, expected_byte_size, content,
         input_buffer + buffer_copy_offset, stream_, &cuda_used);
     if (!status.IsOk()) {
-      request->RespondWithError(status, true /* release_request */);
+      InferenceRequest::RespondWithError(
+          *request, status, true /* release_request */);
       request.release();
       return cuda_copy;
     }
@@ -393,7 +402,8 @@ BackendContext::SetShapeInputBuffer(
         sizeof(int32_t), (void*)&total_batch_size, input_buffer, stream_,
         &cuda_used);
     if (!status.IsOk()) {
-      request->RespondWithError(status, true /* release_request */);
+      InferenceRequest::RespondWithError(
+          *request, status, true /* release_request */);
       request.release();
     }
     cuda_copy |= cuda_used;
@@ -476,7 +486,8 @@ response_provider_->AllocateOutputBuffer(
       }
 
       if (!status.IsOk()) {
-        request->RespondWithError(status, true /* release_request */);
+        InferenceRequest::RespondWithError(
+            *request, status, true /* release_request */);
         request.release();
         process_request = false;
       }
@@ -556,7 +567,8 @@ BackendContext::IssueIndirectOutputBufferCopy(
           &cuda_used);
       if (!status.IsOk()) {
         auto& request = (*requests)[data_info.first];
-        request->RespondWithError(status, true /* release_request */);
+        InferenceRequest::RespondWithError(
+            *request, status, true /* release_request */);
         request.release();
       }
 
@@ -635,7 +647,8 @@ BackendContext::SetOutputShapeTensorBuffer(
       }
 
       if (!status.IsOk()) {
-        request->RespondWithError(status, true /* release_request */);
+        InferenceRequest::RespondWithError(
+            *request, status, true /* release_request */);
         request.release();
       }
     }

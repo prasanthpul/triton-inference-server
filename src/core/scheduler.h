@@ -60,13 +60,12 @@ class Scheduler {
   // "standard" schedulers created based on a model's
   // scheduling_choice settings. The run function must accept a
   // 'runner_idx' indicating which runner should execute the
-  // 'requests'. A non-OK error status indicates an internal error
-  // that prevents any of the of 'requests' from completing. Errors
-  // that impact only a single request should be reported through a
-  // response to that request.
+  // 'requests'. Ownership of the 'requests' is transferred to the
+  // runner which is responsible for generating responses and
+  // releasing the requests.
   using StandardRunFunc = std::function<void(
       uint32_t runner_idx,
-      std::vector<std::unique_ptr<InferenceRequest>>* requests)>;
+      std::vector<std::unique_ptr<InferenceRequest>>&& requests)>;
 
   // The prototype for the shape-tensor peek function that can be
   // called by the "standard" schedulers created based on a model's

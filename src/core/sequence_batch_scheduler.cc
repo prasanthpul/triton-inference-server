@@ -949,8 +949,7 @@ DirectSequenceBatch::SchedulerThread(
   const uint64_t default_wait_microseconds = 500 * 1000;
 
   while (!scheduler_thread_exit_) {
-    auto requests =
-        std::make_shared<std::vector<std::unique_ptr<InferenceRequest>>>();
+    std::vector<std::unique_ptr<InferenceRequest>> requests;
     uint64_t wait_microseconds = default_wait_microseconds;
 
     // Hold the lock for as short a time as possible.
@@ -1078,7 +1077,7 @@ DirectSequenceBatch::SchedulerThread(
           if (use_null_request) {
             std::unique_ptr<InferenceRequest> ni(
                 InferenceRequest::CopyAsNull(*null_irequest));
-            requests->emplace_back(std::move(ni));
+            requests.emplace_back(std::move(ni));
           } else {
             std::unique_ptr<InferenceRequest>& irequest = queue.front();
 
@@ -1086,7 +1085,7 @@ DirectSequenceBatch::SchedulerThread(
             SetControlTensors(
                 irequest, seq_slot, seq_slot_correlation_ids_[seq_slot]);
 
-            requests->emplace_back(std::move(irequest));
+            requests.emplace_back(std::move(irequest));
 
             queue.pop_front();
 
@@ -1141,7 +1140,7 @@ DirectSequenceBatch::SchedulerThread(
       }
     }
 
-    if ((requests != nullptr) && !requests->empty()) {
+    if (!requests.empty()) {
 #if 0
   // FIXME
     auto OnCompleteQueuedPayloads = [payloads](const Status& rstatus) {
@@ -1188,7 +1187,7 @@ DirectSequenceBatch::SchedulerThread(
 #endif
 
       // Run the backend...
-      OnSchedule_(batcher_idx_, requests.get());
+      OnSchedule_(batcher_idx_, std::move(requests));
 
       // For testing we introduce a delay here to make the
       // "SequenceBatchScheduler destroyed by this thread" case

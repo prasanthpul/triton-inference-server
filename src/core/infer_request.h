@@ -366,8 +366,10 @@ class InferenceRequest {
   Status PrepareForInference();
 
   // Run this inference request using the backend associated with the
-  // request. This call takes ownership of the request object and so
-  // 'request' is nullptr on return.
+  // request. If Status::Success is returned then the call has taken
+  // ownership of the request object and so 'request' will be
+  // nullptr. If non-success is returned then the caller still retains
+  // ownership of 'request'.
   static Status Run(std::unique_ptr<InferenceRequest>& request);
 
   // Send an error response for this request. If 'status' is Success
@@ -376,7 +378,19 @@ class InferenceRequest {
   // given to the callback. Thus, if 'release_request' is true the
   // caller no longer has ownership of this object and so should drop
   // all references not access or destroy this object.
-  void RespondWithError(const Status& status, const bool release_request);
+  static void RespondWithError(
+      const InferenceRequest& request, const Status& status,
+      const bool release_request);
+
+  // Send an error response to a set of 'requests'. If 'status' is
+  // Success then no responses are sent. If 'release_request' is true
+  // then the release callback is called for each request, and the request is
+  // ownership is given to the callback. Thus, if 'release_request' is
+  // true the caller no longer has ownership of this object and so
+  // should drop all references not access or destroy this object.
+  static void RespondWithError(
+      std::vector<std::unique_ptr<InferenceRequest>>* requests,
+      const Status& status, const bool release_requests);
 
   // Create a copy of 'from' suitable for use as a "null" request as
   // required for the direct sequence batcher. The returned copy will

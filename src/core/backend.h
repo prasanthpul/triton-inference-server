@@ -111,11 +111,13 @@ class InferenceBackend {
     std::vector<std::string> provided_data_;
   };
 
-  // Run model on the context associated with 'runner_idx' to
-  // execute for one or more requests.
+  // Run model on the context associated with 'runner_idx' to execute
+  // for one or more requests. This function takes ownership of
+  // 'requests' and is responsible for generating responses and
+  // releasing the requests.
   virtual void Run(
       uint32_t runner_idx,
-      std::vector<std::unique_ptr<InferenceRequest>>* requests);
+      std::vector<std::unique_ptr<InferenceRequest>>&& requests);
 
   // Warm up context associated with 'runner_idx' with provided 'sample'.
   virtual void WarmUp(

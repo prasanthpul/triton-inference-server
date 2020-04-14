@@ -281,7 +281,7 @@ DynamicBatchScheduler::SchedulerThread(
   while (!thread_exit->load()) {
     NVTX_RANGE(nvtx_, "DynamicBatchScheduler " + runner_id);
 
-    std::shared_ptr<std::vector<std::unique_ptr<InferenceRequest>>> requests;
+    std::vector<std::unique_ptr<InferenceRequest>> requests;
     std::shared_ptr<std::vector<std::deque<std::unique_ptr<InferenceRequest>>>>
         rejected_requests;
     bool wake_thread = false;
@@ -312,13 +312,11 @@ DynamicBatchScheduler::SchedulerThread(
         // Extract batch only if there is pending batch
         auto pending_batch_queue_cnt = queue_.PendingBatchCount();
         if ((wait_microseconds == 0) && (pending_batch_queue_cnt != 0)) {
-          requests = std::make_shared<
-              std::vector<std::unique_ptr<InferenceRequest>>>();
           for (size_t idx = 0; idx < pending_batch_queue_cnt; ++idx) {
             std::unique_ptr<InferenceRequest> request;
             auto status = queue_.Dequeue(&request);
             if (status.IsOk()) {
-              requests->emplace_back(std::move(request));
+              requests.emplace_back(std::move(request));
             } else {
               // The queue is empty which conflicts with pending batch count.
               // Send the current batch if any and reset related variables.
@@ -330,7 +328,7 @@ DynamicBatchScheduler::SchedulerThread(
               break;
             }
           }
-          if (preserve_ordering_ && !requests->empty()) {
+          if (preserve_ordering_ && !requests.empty()) {
             std::lock_guard<std::mutex> lock(completion_id_queue_mtx_);
             completion_id_queue_.push(completion_id);
           }
@@ -359,12 +357,10 @@ DynamicBatchScheduler::SchedulerThread(
         }
       } else {
         // No batching... execute next request
-        requests =
-            std::make_shared<std::vector<std::unique_ptr<InferenceRequest>>>();
         std::unique_ptr<InferenceRequest> request;
         auto status = queue_.Dequeue(&request);
         if (status.IsOk()) {
-          requests->emplace_back(std::move(request));
+          requests.emplace_back(std::move(request));
           if (preserve_ordering_) {
             std::lock_guard<std::mutex> lock(completion_id_queue_mtx_);
             completion_id_queue_.push(completion_id);
@@ -389,7 +385,7 @@ DynamicBatchScheduler::SchedulerThread(
       cv_.notify_one();
     }
 
-    if ((requests != nullptr) && !requests->empty()) {
+    if (!requests.empty()) {
       // FIXME, need to sort out how preserve_ordering and stats
       // update should happen
 #if 0
@@ -399,7 +395,7 @@ DynamicBatchScheduler::SchedulerThread(
       };
 #endif
 
-      OnSchedule_(runner_id, requests.get());
+      OnSchedule_(runner_id, std::move(requests));
 
       // For testing we introduce a delay here to make the
       // "DynamicBatchScheduler destroyed by this thread" case

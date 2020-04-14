@@ -83,6 +83,14 @@ InferenceRequest::Run(std::unique_ptr<InferenceRequest>& request)
 
 void
 InferenceRequest::RespondWithError(
+    const InferenceRequest& request, const Status& status,
+    const bool release_request)
+{
+}
+
+void
+InferenceRequest::RespondWithError(
+    std::vector<std::unique_ptr<InferenceRequest>>* requests,
     const Status& status, const bool release_request)
 {
 }

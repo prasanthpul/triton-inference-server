@@ -93,15 +93,14 @@ struct BackendContext {
   Status CreateCudaStream(
       const int cuda_stream_priority = 0, cudaStream_t* stream = nullptr);
 
-  // Run model to execute for one or more requests. This function
-  // assumes that it is only called by the single runner thread that
-  // is assigned to this context. A non-OK return status indicates an
-  // internal error that prevents any of the of requests from
-  // completing. If an error is isolated to a single request it will
-  // be reported in the corresponding response.
-  virtual Status Run(
+  // Run model to execute one or more requests. This function assumes
+  // that it is only called by the single runner thread that is
+  // assigned to this context. This function takes ownership of
+  // 'requests' and is responsible for generating responses and
+  // releasing the requests.
+  virtual void Run(
       const InferenceBackend* base,
-      std::vector<std::unique_ptr<InferenceRequest>>* requests) = 0;
+      std::vector<std::unique_ptr<InferenceRequest>>&& requests) = 0;
 
   // Return the contents of a shape tensor. It is the caller's
   // responsibility to call this only for shape tensors that are

@@ -238,22 +238,21 @@ InferenceBackend::Enqueue(
 void
 InferenceBackend::Run(
     uint32_t runner_idx,
-    std::vector<std::unique_ptr<InferenceRequest>>* requests)
+    std::vector<std::unique_ptr<InferenceRequest>>&& requests)
 {
   // Each runner executes using the corresponding context...
   if (runner_idx >= contexts_.size()) {
-    // FIXME, must send error response to all requests
-#if 0
-  OnCompleteQueuedPayloads(Status(
-        Status::Code::INTERNAL,
-        "unexpected runner index" + std::to_string(runner_idx) +
-            ", max allowed " + std::to_string(contexts_.size())));
-#endif
+    InferenceRequest::RespondWithError(
+        &requests,
+        Status(
+            Status::Code::INTERNAL,
+            "unexpected runner index" + std::to_string(runner_idx) +
+                ", max allowed " + std::to_string(contexts_.size())),
+        true /* release_requests */);
     return;
   }
 
 #ifdef TRTIS_ENABLE_STATS
-#if 0  // FIXME stats
   // Stop queue timer and start compute timer when the request is
   // scheduled to run
   for (auto& request : *requests) {
@@ -263,15 +262,11 @@ InferenceBackend::Run(
       payload.stats_->SetGPUDevice(contexts_[runner_idx]->gpu_device_);
     }
   }
-#endif
 #endif  // TRTIS_ENABLE_STATS
 
-  // FIXME, should not return status.. expecting this run function to
-  // directly send responses for errors as necessary.
-  Status status = contexts_[runner_idx]->Run(this, requests);
+  contexts_[runner_idx]->Run(this, std::move(requests));
 
 #ifdef TRTIS_ENABLE_STATS
-#if 0  // FIXME stats
   // Stop compute timers.
   for (auto& payload : *payloads) {
     if (payload.stats_ != nullptr) {
@@ -279,11 +274,7 @@ InferenceBackend::Run(
           ModelInferStats::TimestampKind::kComputeEnd);
     }
   }
-#endif
 #endif  // TRTIS_ENABLE_STATS
-
-  // FIXME remove this once Run about no longer returns Status
-  //  OnCompleteQueuedPayloads(status);
 }
 
 void
@@ -311,7 +302,7 @@ InferenceBackend::WarmUp(
 #endif
 
   // Unless necessary, simply invoke Run()
-  Run(runner_idx, &requests);
+  Run(runner_idx, std::move(requests));
 }
 
 Status
