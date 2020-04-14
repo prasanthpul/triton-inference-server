@@ -441,11 +441,12 @@ typedef void (*TRITONSERVER_InferenceRequestReleaseFn_t)(
     TRITONSERVER_Server* server, TRITONSERVER_InferenceRequest* request,
     void* userp);
 
-/// Type for inference response callback function. The callback
-/// function takes ownership of the TRITONSERVER_InferenceResponse
-/// object. The 'userp' data is the same as what is supplied in the
-/// call to TRITONSERVER_ServerInferAsync.
-typedef void (*TRITONSERVER_InferenceResponseFn_t)(
+/// Type for callback function indicating that an inference response
+/// has completed. The callback function takes ownership of the
+/// TRITONSERVER_InferenceResponse object. The 'userp' data is the
+/// same as what is supplied in the call to
+/// TRITONSERVER_ServerInferAsync.
+typedef void (*TRITONSERVER_InferenceResponseCompleteFn_t)(
     TRITONSERVER_Server* server, TRITONSERVER_InferenceResponse* response,
     void* userp);
 
@@ -694,7 +695,8 @@ TRITONSERVER_InferenceRequestSetResponseCallback(
     TRITONSERVER_InferenceRequest* inference_request,
     TRITONSERVER_ResponseAllocator* response_allocator,
     void* response_allocator_userp,
-    TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp);
+    TRITONSERVER_InferenceResponseCompleteFn_t response_fn,
+    void* response_userp);
 
 /// TRITONSERVER_InferenceResponse
 ///
@@ -702,6 +704,12 @@ TRITONSERVER_InferenceRequestSetResponseCallback(
 /// provides the meta-data and output tensor values calculated by the
 /// inference.
 ///
+
+/// Delete an inference response object.
+/// \param inference_response The response object.
+/// \return a TRITONSERVER_Error indicating success or failure.
+TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceResponseDelete(
+    TRITONSERVER_InferenceResponse* inference_response);
 
 /// Return the error status of an inference response. Return a
 /// TRITONSERVER_Error object on failure, return nullptr on success.
@@ -725,32 +733,29 @@ TRITONSERVER_InferenceResponseOutputCount(
 
 /// Get all information about an output tensor.  The tensor data is
 /// returned as the base pointer to the data and the size, in bytes,
-/// of the data. The caller does not own the returned data and must
-/// not modify or delete it. The lifetime of all returned data extends
-/// until 'inference_response' is deleted.
+/// of the data. The caller does not own any of the returned value and
+/// must not modify or delete them. The lifetime of all returned
+/// values extends until 'inference_response' is deleted.
 ///
 /// \param inference_response The response object.
 /// \param index The index of the output tensors, must be 0 <= index <
 /// count, where 'count' is the value returned by
 /// TRITONSERVER_InferenceResponseOutputCount.
-/// \param datatype Returns the type of the output. The returned
-/// datatype is owned by 'inference_response' and must not be modified
-/// or freed by the caller.
-/// \param shape Returns the shape of the output. The returned value
-/// is owned by 'inference_response' and must not be modified or freed
-/// by the caller.
+/// \param name Returns the name of the output.
+/// \param datatype Returns the type of the output.
+/// \param shape Returns the shape of the output.
 /// \param dim_count Returns the number of dimensions of the returned
 /// shape.
-/// \param base Returns the tensor data for the named output.
+/// \param base Returns the tensor data for the output.
 /// \param byte_size Returns the size, in bytes, of the  data.
 /// \param memory_type Returns the memory type of the data.
 /// \param memory_type_id Returns the memory type id of the data.
 /// \return a TRITONSERVER_Error indicating success or failure.
 TRITONSERVER_EXPORT TRITONSERVER_Error* TRITONSERVER_InferenceResponseOutput(
     TRITONSERVER_InferenceResponse* inference_response, const uint32_t index,
-    const char** datatype, const int64_t** shape, uint64_t* dim_count,
-    const void** base, size_t* byte_size, TRITONSERVER_Memory_Type* memory_type,
-    int64_t* memory_type_id);
+    const char** name, const char** datatype, const int64_t** shape,
+    uint64_t* dim_count, const void** base, size_t* byte_size,
+    TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id);
 
 
 /// TRITONSERVER_ServerOptions

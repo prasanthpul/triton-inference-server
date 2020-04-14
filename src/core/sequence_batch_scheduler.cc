@@ -1015,7 +1015,7 @@ DirectSequenceBatch::SchedulerThread(
             // this null request will have the correct shape for any
             // created batch.
             if (null_irequest == nullptr) {
-              null_irequest.reset(queue.front()->Copy());
+              null_irequest.reset(InferenceRequest::CopyAsNull(*queue.front()));
 
               // Note that when the not-ready control input of the
               // request is "true" the model can't assume that any
@@ -1076,7 +1076,8 @@ DirectSequenceBatch::SchedulerThread(
           // Use null-request if necessary otherwise use the next
           // request in the queue...
           if (use_null_request) {
-            std::unique_ptr<InferenceRequest> ni(null_irequest->Copy());
+            std::unique_ptr<InferenceRequest> ni(
+                InferenceRequest::CopyAsNull(*null_irequest));
             requests->emplace_back(std::move(ni));
           } else {
             std::unique_ptr<InferenceRequest>& irequest = queue.front();

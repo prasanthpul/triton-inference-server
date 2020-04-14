@@ -81,6 +81,18 @@ InferenceRequest::Run(std::unique_ptr<InferenceRequest>& request)
   return request->backend_raw_->Enqueue(nullptr, request);
 }
 
+void
+InferenceRequest::RespondWithError(
+    const Status& status, const bool release_request)
+{
+}
+
+InferenceRequest*
+InferenceRequest::CopyAsNull(const InferenceRequest& from)
+{
+  return nullptr;
+}
+
 Status
 InferenceRequest::MutableOriginalInput(
     const std::string& name, InferenceRequest::Input** input)

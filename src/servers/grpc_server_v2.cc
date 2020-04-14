@@ -2454,7 +2454,6 @@ ModelInferHandler::Process(Handler::State* state, bool rpc_ok)
           InferRequestComplete, nullptr /* request_release_userp */,
           InferResponseComplete, reinterpret_cast<void*>(state), trace_manager,
           TraceManagerComplete, nullptr /* trace_release_userp */);
-      <
     }
 
     // If not error then state->step_ == ISSUED and inference request

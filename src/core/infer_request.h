@@ -353,20 +353,14 @@ class InferenceRequest {
   // responses produced for this request.
   Status SetResponseCallback(
       const ResponseAllocator* allocator, void* alloc_userp,
-      TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+      TRITONSERVER_InferenceResponseCompleteFn_t response_fn,
+      void* response_userp)
   {
     response_factory_ = InferenceResponseFactory(
         backend_shared_, id_str_, allocator, alloc_userp, response_fn,
         response_userp);
     return Status::Success;
   }
-
-  // Explicit copy function... expected to be rarely used (currently
-  // only for the null request needed in the direct sequence
-  // batcher). Using explicit function because copy constructor
-  // disallowed to avoid accidentially introducing copies of this
-  // class.
-  InferenceRequest* Copy();
 
   // Prepare this request for inference.
   Status PrepareForInference();
@@ -383,6 +377,11 @@ class InferenceRequest {
   // caller no longer has ownership of this object and so should drop
   // all references not access or destroy this object.
   void RespondWithError(const Status& status, const bool release_request);
+
+  // Create a copy of 'from' suitable for use as a "null" request as
+  // required for the direct sequence batcher. The returned copy will
+  // contain only the minimum content required for a null request.
+  static InferenceRequest* CopyAsNull(const InferenceRequest& from);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InferenceRequest);

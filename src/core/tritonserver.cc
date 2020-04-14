@@ -1096,7 +1096,8 @@ TRITONSERVER_InferenceRequestSetResponseCallback(
     TRITONSERVER_InferenceRequest* inference_request,
     TRITONSERVER_ResponseAllocator* response_allocator,
     void* response_allocator_userp,
-    TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+    TRITONSERVER_InferenceResponseCompleteFn_t response_fn,
+    void* response_userp)
 {
   ni::InferenceRequest* lrequest =
       reinterpret_cast<ni::InferenceRequest*>(inference_request);
@@ -1110,6 +1111,16 @@ TRITONSERVER_InferenceRequestSetResponseCallback(
 //
 // TRITONSERVER_InferenceResponse
 //
+TRITONSERVER_Error*
+TRITONSERVER_InferenceResponseDelete(
+    TRITONSERVER_InferenceResponse* inference_response)
+{
+  ni::InferenceResponse* lresponse =
+      reinterpret_cast<ni::InferenceResponse*>(inference_response);
+  delete lresponse;
+  return nullptr;  // Success
+}
+
 TRITONSERVER_Error*
 TRITONSERVER_InferenceResponseError(
     TRITONSERVER_InferenceResponse* inference_response)
@@ -1137,9 +1148,9 @@ TRITONSERVER_InferenceResponseOutputCount(
 TRITONSERVER_Error*
 TRITONSERVER_InferenceResponseOutput(
     TRITONSERVER_InferenceResponse* inference_response, const uint32_t index,
-    const char** datatype, const int64_t** shape, uint64_t* dim_count,
-    const void** base, size_t* byte_size, TRITONSERVER_Memory_Type* memory_type,
-    int64_t* memory_type_id)
+    const char** name, const char** datatype, const int64_t** shape,
+    uint64_t* dim_count, const void** base, size_t* byte_size,
+    TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id)
 {
   ni::InferenceResponse* lresponse =
       reinterpret_cast<ni::InferenceResponse*>(inference_response);

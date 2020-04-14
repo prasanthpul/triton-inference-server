@@ -46,7 +46,8 @@ class InferenceResponseFactory {
   InferenceResponseFactory(
       const std::shared_ptr<InferenceBackend>& backend, const std::string& id,
       const ResponseAllocator* allocator, void* alloc_userp,
-      TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+      TRITONSERVER_InferenceResponseCompleteFn_t response_fn,
+      void* response_userp)
       : backend_(backend), id_(id), allocator_(allocator),
         alloc_userp_(alloc_userp), response_fn_(response_fn),
         response_userp_(response_userp)
@@ -78,7 +79,7 @@ class InferenceResponseFactory {
   void* alloc_userp_;
 
   // The response callback function and user pointer.
-  TRITONSERVER_InferenceResponseFn_t response_fn_;
+  TRITONSERVER_InferenceResponseCompleteFn_t response_fn_;
   void* response_userp_;
 };
 
@@ -164,7 +165,8 @@ class InferenceResponse {
   InferenceResponse(
       const std::shared_ptr<InferenceBackend>& backend, const std::string& id,
       const ResponseAllocator* allocator, void* alloc_userp,
-      TRITONSERVER_InferenceResponseFn_t response_fn, void* response_userp)
+      TRITONSERVER_InferenceResponseCompleteFn_t response_fn,
+      void* response_userp)
       : backend_(backend), id_(id), allocator_(allocator),
         alloc_userp_(alloc_userp), response_fn_(response_fn),
         response_userp_(response_userp)
@@ -207,7 +209,7 @@ class InferenceResponse {
   void* alloc_userp_;
 
   // The response callback function and user pointer.
-  TRITONSERVER_InferenceResponseFn_t response_fn_;
+  TRITONSERVER_InferenceResponseCompleteFn_t response_fn_;
   void* response_userp_;
 };
 
