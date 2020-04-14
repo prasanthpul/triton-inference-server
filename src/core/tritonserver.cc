@@ -1685,8 +1685,8 @@ TRITONSERVER_ServerInferAsync(
     TRITONSERVER_Server* server,
     TRITONSERVER_InferenceRequest* inference_request,
     TRITONSERVER_TraceManager* trace_manager,
-    TRITONSERVER_TraceManagerReleaseFn_t trace_release_fn,
-    void* trace_release_userp)
+    TRITONSERVER_TraceManagerReleaseFn_t trace_manager_release_fn,
+    void* trace_manager_release_userp)
 {
   ni::InferenceServer* lserver = reinterpret_cast<ni::InferenceServer*>(server);
   ni::InferenceRequest* lrequest =
@@ -1714,7 +1714,7 @@ TRITONSERVER_ServerInferAsync(
   // trace manager is no longer in use by the requests or any
   // response. So this code should be removed eventually.
   if (status.IsOk() && (trace_manager != nullptr)) {
-    trace_release_fn(server, trace_manager, trace_release_userp);
+    trace_manager_release_fn(trace_manager, trace_manager_release_userp);
   }
 
   // If there is error then ureq will still have 'lrequest' and we

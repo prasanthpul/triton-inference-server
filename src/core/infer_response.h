@@ -27,12 +27,17 @@
 
 #include <string>
 #include <vector>
+#include "src/core/constants.h"
 #include "src/core/model_config.h"
 #include "src/core/response_allocator.h"
 #include "src/core/status.h"
 #include "src/core/tritonserver.h"
 
 namespace nvidia { namespace inferenceserver {
+
+// FIXMEV2 shouldn't need the conversions
+TRTSERVER_Memory_Type TritonMemTypeToTrt(TRITONSERVER_Memory_Type mem_type);
+TRITONSERVER_Memory_Type TrtMemTypeToTriton(TRTSERVER_Memory_Type mem_type);
 
 class InferenceBackend;
 class InferenceResponse;
@@ -133,6 +138,9 @@ class InferenceResponse {
     Status AllocateBuffer(
         void** buffer, const size_t buffer_byte_size,
         TRITONSERVER_Memory_Type* memory_type, int64_t* memory_type_id);
+    Status AllocateBuffer(
+        void** buffer, const size_t buffer_byte_size,
+        TRTSERVER_Memory_Type* memory_type, int64_t* memory_type_id);
 
     // Release the buffer that was previously allocated by
     // AllocateBuffer(). Do nothing if AllocateBuffer() has not been
@@ -140,6 +148,7 @@ class InferenceResponse {
     Status ReleaseBuffer();
 
    private:
+    DISALLOW_COPY_AND_ASSIGN(Output);
     friend std::ostream& operator<<(
         std::ostream& out, const InferenceResponse::Output& output);
 
@@ -178,14 +187,22 @@ class InferenceResponse {
   int64_t ActualModelVersion() const;
 
   const Status& ResponseStatus() const { return status_; }
+  void SetResponseStatus(const Status& s) { status_ = s; }
+
   const std::vector<Output>& Outputs() const { return outputs_; }
 
-  // Add an output to the response.
+  // Add an output to the response. If 'output' is non-null
+  // return a pointer to the newly added output.
   Status AddOutput(
       const std::string& name, const DataType datatype,
-      const std::vector<int64_t>& shape);
+      const std::vector<int64_t>& shape, Output** output = nullptr);
+
+  // Send the response. Calling this function releases ownership of
+  // the response object and gives it to the callback function.
+  static Status Send(std::unique_ptr<InferenceResponse>&& response);
 
  private:
+  DISALLOW_COPY_AND_ASSIGN(InferenceResponse);
   friend std::ostream& operator<<(
       std::ostream& out, const InferenceResponse& response);
 

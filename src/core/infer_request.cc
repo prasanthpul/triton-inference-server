@@ -78,26 +78,60 @@ InferenceRequest::ActualModelVersion() const
 Status
 InferenceRequest::Run(std::unique_ptr<InferenceRequest>& request)
 {
-  return request->backend_raw_->Enqueue(nullptr, request);
+  return request->backend_raw_->Enqueue(request);
 }
 
 void
 InferenceRequest::RespondWithError(
-    const InferenceRequest& request, const Status& status,
+    std::unique_ptr<InferenceRequest>& request, const Status& status,
     const bool release_request)
 {
+  if (status.IsOk()) {
+    return;
+  }
+
+  // Use the response factory to create a response, set the status,
+  // and send it. If something goes wrong all we can do is log the
+  // error.
+  std::unique_ptr<InferenceResponse> response;
+  LOG_STATUS_ERROR(
+      request->response_factory_.CreateResponse(&response),
+      "failed to create error response");
+  response->SetResponseStatus(status);
+  LOG_STATUS_ERROR(
+      InferenceResponse::Send(std::move(response)),
+      "failed to send error response");
+
+  // If releasing the request then invoke the release callback which
+  // gives ownership to the callback. So can't access 'request' after
+  // this point.
+  if (release_request) {
+    void* userp = request->release_userp_;
+    request->release_fn_(
+        reinterpret_cast<TRITONSERVER_InferenceRequest*>(request.release()),
+        userp);
+  }
 }
 
 void
 InferenceRequest::RespondWithError(
-    std::vector<std::unique_ptr<InferenceRequest>>* requests,
-    const Status& status, const bool release_request)
+    std::vector<std::unique_ptr<InferenceRequest>>& requests,
+    const Status& status, const bool release_requests)
 {
+  if (status.IsOk()) {
+    return;
+  }
+
+  for (auto& request : requests) {
+    RespondWithError(request, status, release_requests);
+  }
 }
 
 InferenceRequest*
 InferenceRequest::CopyAsNull(const InferenceRequest& from)
 {
+  // FIXME
+  LOG_ERROR << "CopyAsNull: NYI";
   return nullptr;
 }
 

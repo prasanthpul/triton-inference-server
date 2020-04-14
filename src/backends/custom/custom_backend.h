@@ -87,18 +87,19 @@ class CustomBackend : public InferenceBackend {
     std::string LibraryErrorString(const int err);
 
     // See BackendContext::Run()
-    Status Run(
+    void Run(
         const InferenceBackend* base,
-        std::vector<Scheduler::Payload>* payloads) override;
+        std::vector<std::unique_ptr<InferenceRequest>>&& requests) override;
 
     struct GetInputOutputContext {
       GetInputOutputContext(
-          CustomBackend::Context* context, Scheduler::Payload* payload)
-          : context_(context), payload_(payload)
+          CustomBackend::Context* context, InferenceRequest* request)
+          : context_(context), request_(request)
       {
       }
       CustomBackend::Context* context_;
-      Scheduler::Payload* payload_;
+      InferenceRequest* request_;
+      std::unique_ptr<InferenceResponse> response_;
 
       // Map from input to the buffer index for the tensor data for
       // that input.
