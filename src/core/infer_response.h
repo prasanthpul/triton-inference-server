@@ -25,6 +25,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
+#include <deque>
 #include <string>
 #include <vector>
 #include "src/core/constants.h"
@@ -189,7 +190,7 @@ class InferenceResponse {
   const Status& ResponseStatus() const { return status_; }
   void SetResponseStatus(const Status& s) { status_ = s; }
 
-  const std::vector<Output>& Outputs() const { return outputs_; }
+  const std::deque<Output>& Outputs() const { return outputs_; }
 
   // Add an output to the response. If 'output' is non-null
   // return a pointer to the newly added output.
@@ -218,7 +219,11 @@ class InferenceResponse {
   // every response.
   std::string id_;
 
-  std::vector<Output> outputs_;
+  // The result tensors. Use a deque so that there is no reallocation
+  // with the resulting copies.
+  std::deque<Output> outputs_;
+
+  // Error status for the response.
   Status status_;
 
   // The response allocator and user pointer.

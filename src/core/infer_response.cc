@@ -96,7 +96,7 @@ InferenceResponse::AddOutput(
     const std::string& name, const DataType datatype,
     const std::vector<int64_t>& shape, InferenceResponse::Output** output)
 {
-  outputs_.emplace_back(std::forward_as_tuple(name, datatype, shape, allocator_, alloc_userp_));
+  outputs_.emplace_back(name, datatype, shape, allocator_, alloc_userp_);
 
   LOG_VERBOSE(1) << "add response output: " << outputs_.back();
 

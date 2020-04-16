@@ -1138,7 +1138,7 @@ TRITONSERVER_InferenceResponseOutputCount(
   ni::InferenceResponse* lresponse =
       reinterpret_cast<ni::InferenceResponse*>(inference_response);
 
-  const std::vector<ni::InferenceResponse::Output>& outputs =
+  const auto& outputs =
       lresponse->Outputs();
   *count = outputs.size();
 
@@ -1155,8 +1155,7 @@ TRITONSERVER_InferenceResponseOutput(
   ni::InferenceResponse* lresponse =
       reinterpret_cast<ni::InferenceResponse*>(inference_response);
 
-  const std::vector<ni::InferenceResponse::Output>& outputs =
-      lresponse->Outputs();
+  const auto& outputs =  lresponse->Outputs();
   if (index >= outputs.size()) {
     return TritonServerError::Create(
         TRITONSERVER_ERROR_INVALID_ARG,
